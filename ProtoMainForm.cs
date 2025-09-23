@@ -48,7 +48,7 @@ namespace KenshiCore
             Dock = DockStyle.Fill,
             ColumnCount = 2,
         };
-        protected Panel listContainer;
+        protected Panel? listContainer;
         private FlowLayoutPanel buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -89,7 +89,7 @@ namespace KenshiCore
             mainlayout.Controls.Add(modsListView, 0, 1);
 
             modsListView.SelectedIndexChanged += SelectedIndexChanged;
-            modsListView.ColumnClick += ModsListView_ColumnClick;
+            modsListView.ColumnClick += ModsListView_ColumnClick!;
             modsListView.ListViewItemSorter = new ListViewColumnSorter();
 
             mainlayout.Controls.Add(buttonPanel, 1, 1);
@@ -102,7 +102,7 @@ namespace KenshiCore
 
 
 
-            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog.Text, "Console.log"));
+            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
 
             _= InitializeAsync();
         }
@@ -247,7 +247,7 @@ namespace KenshiCore
         private void ModsListView_DrawColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
         {
             e.DrawBackground();
-            string text = e.Header.Text;
+            string text = e.Header!.Text;
             if (modsListView.ListViewItemSorter is ListViewColumnSorter sorter && sorter.Column == e.ColumnIndex)
             {
                 string marker = sorter.Order switch
@@ -326,8 +326,8 @@ namespace KenshiCore
             if (!mergedMods.TryGetValue(modName, out var mod)) return;
             if (mod.WorkshopId == -1) return;
 
-            string workshopFolder = Path.Combine(ModManager.workshopModsPath, mod.WorkshopId.ToString());
-            string gameDirFolder = Path.Combine(ModManager.gamedirModsPath, Path.GetFileNameWithoutExtension(modName));
+            string workshopFolder = Path.Combine(ModManager.workshopModsPath!, mod.WorkshopId.ToString());
+            string gameDirFolder = Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(modName));
 
             if (Directory.Exists(gameDirFolder))
             {
