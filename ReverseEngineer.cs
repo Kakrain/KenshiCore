@@ -5,8 +5,9 @@ using System.IO;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
+using System.Windows.Forms;
 
-namespace KenshiUtilities.Core
+namespace KenshiCore
 {
     public class ReverseEngineer
     {
@@ -138,13 +139,13 @@ namespace KenshiUtilities.Core
         {
             var record = new ModRecord();
             record.InstanceCount = ReadInt(reader);
-            record.TypeCode = ReadInt(reader);
+            record.TypeCode = ReadInt(reader);//BUILDING,GAMESTATE_FACTION,etc
             record.Id = ReadInt(reader);
             record.Name = ReadString(reader);
             record.StringId = ReadString(reader);
-            record.ModDataType = ReadInt(reader);
+            record.ModDataType = ReadInt(reader);//-2147483646 means new,-2147483647 means changed,-2147483645 changed and name was changed
 
-            record.BoolFields = ReadDictionary(reader, ReadBool);
+            record.BoolFields = ReadDictionary(reader, ReadBool); //if removed by a mod just one bool field: "REMOVED": True
             record.FloatFields = ReadDictionary(reader, ReadFloat);
             record.LongFields = ReadDictionary(reader, ReadInt);
             record.Vec3Fields = ReadDictionary(reader, r => new float[] { ReadFloat(r), ReadFloat(r), ReadFloat(r) });
@@ -329,6 +330,40 @@ namespace KenshiUtilities.Core
         public Dictionary<string, string> FilenameFields { get; set; } = new();
         public Dictionary<string, Dictionary<string, int[]>>? ExtraDataFields { get; set; }
         public List<ModInstance>? InstanceFields { get; set; }
+        private static readonly Dictionary<int, string> ChangeTypeCodes = new Dictionary<int, string>
+        {
+            { -2147483646,"NEW"},{ -2147483647,"CHANGED_A"},{ -2147483645,"CHANGED_B"}
+        };
+        private static readonly Dictionary<int, string> ModTypeCodes = new Dictionary<int, string>
+        {
+            { 0, "BUILDING" },{ 1, "CHARACTER" },{ 2, "WEAPON" },{ 3, "ARMOUR" },{ 4, "ITEM" },
+            { 5, "ANIMAL_ANIMATION" },{ 6, "ATTACHMENT" },{ 7, "RACE" },{ 9, "NATURE" },{ 10, "FACTION" },
+            { 13, "TOWN" },{ 16, "LOCATIONAL_DAMAGE" },{ 17, "COMBAT_TECHNIQUE" },{ 18, "DIALOGUE" },{ 19, "DIALOGUE_LINE" },
+            { 21, "RESEARCH" },{ 22, "AI_TASK" },{ 24, "ANIMATION" },{ 25, "STATS" },{ 26, "PERSONALITY" },
+            { 27, "CONSTANTS" },{ 28, "BIOMES" },{ 29, "BUILDING_PART" },{ 30, "INSTANCE_COLLECTION" },{ 31, "DIALOG_ACTION" },
+            { 34, "PLATOON" },{ 36, "GAMESTATE_CHARACTER" },{ 37, "GAMESTATE_FACTION" },{ 38, "GAMESTATE_TOWN_INSTANCE_LIST" },{ 41, "INVENTORY_STATE" },
+            { 42, "INVENTORY_ITEM_STATE" },{ 43, "REPEATABLE_BUILDING_PART_SLOT" },{ 44, "MATERIAL_SPEC" },{ 45, "MATERIAL_SPECS_COLLECTION" },{ 46, "CONTAINER" },
+            { 47, "MATERIAL_SPECS_CLOTHING" },{ 49, "VENDOR_LIST" },{ 50, "MATERIAL_SPECS_WEAPON" },{ 51, "WEAPON_MANUFACTURER" },{ 52, "SQUAD_TEMPLATE" },
+            { 53, "ROAD" },{ 55, "COLOR_DATA" },{ 56, "CAMERA" },{ 57, "MEDICAL_STATE" },{ 59, "FOLIAGE_LAYER" },
+            { 60, "FOLIAGE_MESH" },{ 61, "GRASS" },{ 62, "BUILDING_FUNCTIONALITY" },{ 63, "DAY_SCHEDULE" },{ 64, "NEW_GAME_STARTOFF" },
+            { 66, "CHARACTER_APPEARANCE" },{ 67, "GAMESTATE_AI" },{ 68, "WILDLIFE_BIRDS" },{ 69, "MAP_FEATURES" },{ 70, "DIPLOMATIC_ASSAULTS" },
+            { 71, "SINGLE_DIPLOMATIC_ASSAULT" },{ 72, "AI_PACKAGE" },{ 73, "DIALOGUE_PACKAGE" },{ 74, "GUN_DATA" },{ 76, "ANIMAL_CHARACTER" },
+            { 77, "UNIQUE_SQUAD_TEMPLATE" },{ 78, "FACTION_TEMPLATE" },{ 80, "WEATHER" },{ 81, "SEASON" },{ 82, "EFFECT" },
+            { 83, "ITEM_PLACEMENT_GROUP" },{ 84, "WORD_SWAPS" },{ 86, "NEST_ITEM" },{ 87, "CHARACTER_PHYSICS_ATTACHMENT" },{ 88, "LIGHT" },
+            { 89, "HEAD" },{ 92, "FOLIAGE_BUILDING" },{ 93, "FACTION_CAMPAIGN" },{ 94, "GAMESTATE_TOWN" },{ 95, "BIOME_GROUP" },
+            { 96, "EFFECT_FOG_VOLUME" },{ 97, "FARM_DATA" },{ 98, "FARM_PART" },{ 99, "ENVIRONMENT_RESOURCES" },{ 100, "RACE_GROUP" },
+            { 101, "ARTIFACTS" },{ 102, "MAP_ITEM" },{ 103, "BUILDINGS_SWAP" },{ 104, "ITEMS_CULTURE" },{ 105, "ANIMATION_EVENT" },
+            { 107, "CROSSBOW" }
+        };
+        public string getModType()
+        {
+            return ModTypeCodes.GetValueOrDefault(this.TypeCode, $"UNKNOWN:{this.TypeCode.ToString()}");
+        }
+        public string getChangeType()
+        {
+            if (this.BoolFields.TryGetValue("REMOVED", out var value) && value) return "REMOVED";
+            return ChangeTypeCodes.GetValueOrDefault(this.ModDataType, $"UNKNOWN:{this.ModDataType.ToString()}");
+        }
     }
     public class ModInstance
     {

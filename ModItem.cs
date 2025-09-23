@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace KenshiUtilities.Core
+namespace KenshiCore
 {
     public class ModItem
     {
@@ -13,9 +13,9 @@ namespace KenshiUtilities.Core
         public long WorkshopId { get; set; }
         private static Dictionary<int, Image> iconCache = new();
 
-        public static Image? gameDirIcon = ResourceLoader.LoadImage("KenshiUtilities.icons.kenshiicon.png");
-        public static Image? workshopIcon = ResourceLoader.LoadImage("KenshiUtilities.icons.steamicon.png");
-        private static Image? image = ResourceLoader.LoadImage("KenshiUtilities.icons.selectedicon.png");
+        public static Image? gameDirIcon = ResourceLoader.LoadImage("KenshiCore.icons.kenshiicon.png");
+        public static Image? workshopIcon = ResourceLoader.LoadImage("KenshiCore.icons.steamicon.png");
+        private static Image? image = ResourceLoader.LoadImage("KenshiCore.icons.selectedicon.png");
         public static Image? selectedIcon = image;
         public ModItem(string name)
         {

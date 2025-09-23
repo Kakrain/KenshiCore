@@ -2,7 +2,6 @@
 using System.Collections;
 using System.Diagnostics;
 using System.Windows.Forms;
-using KenshiUtilities.Core;
 
 class ListViewColumnSorter : IComparer
 {
@@ -24,7 +23,7 @@ class ListViewColumnSorter : IComparer
     }
 }
 
-namespace KenshiUtilities
+namespace KenshiCore
 {
     public class ProtoMainForm : Form
     {
@@ -36,20 +35,20 @@ namespace KenshiUtilities
         private List<string> workshopMods = new List<string>();
         private Dictionary<string, ListViewItem> modItemsLookup = new();
         private List<ListViewItem> originalOrder = new();
-
         protected TextBox? generalLog;
-        private ProgressBar progressBar;
+        protected ProgressBar progressBar;
         private Label progressLabel;
         private ModManager modM = new ModManager(new ReverseEngineer());
         private Button openGameDirButton;
         private Button openSteamLinkButton;
         private Button copyToGameDirButton;
-        protected TableLayoutPanel mainlayout =new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-            };
-    protected Panel listContainer;
+        private Color secondary_color = Color.White;
+        protected TableLayoutPanel mainlayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+        };
+        protected Panel listContainer;
         private FlowLayoutPanel buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -65,7 +64,7 @@ namespace KenshiUtilities
             mainlayout.RowCount = 3;
             mainlayout.RowStyles.Clear();
             mainlayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F));
-            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));  
+            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
             mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
 
             mainlayout.ColumnCount = 2;
@@ -94,20 +93,39 @@ namespace KenshiUtilities
             modsListView.ListViewItemSorter = new ListViewColumnSorter();
 
             mainlayout.Controls.Add(buttonPanel, 1, 1);
+            
 
-            openGameDirButton = new Button { Text = "Open Mod Directory", AutoSize = true, Enabled = false };
-            openGameDirButton.Click += OpenGameDirButton_Click;
-            buttonPanel.Controls.Add(openGameDirButton);
+            openGameDirButton = AddButton("Open Mod Directory", OpenGameDirButton_Click);
+            openSteamLinkButton = AddButton("Open Steam Link", OpenSteamLinkButton_Click);
+            copyToGameDirButton = AddButton("Copy to GameDir", CopyToGameDirButton_Click);
 
-            openSteamLinkButton = new Button { Text = "Open Steam Link", AutoSize = true, Enabled = false };
-            openSteamLinkButton.Click += OpenSteamLinkButton_Click;
-            buttonPanel.Controls.Add(openSteamLinkButton);
 
-            copyToGameDirButton = new Button { Text = "Copy to GameDir", AutoSize = true, Enabled = false };
-            copyToGameDirButton.Click += CopyToGameDirButton_Click;
-            buttonPanel.Controls.Add(copyToGameDirButton);
 
-            _ = InitializeAsync();
+
+            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog.Text, "Console.log"));
+
+            _= InitializeAsync();
+        }
+        protected override async void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            await InitializeAsync();
+        }
+        protected void setColors(Color main, Color secondary)
+        {
+            this.BackColor = main;
+            this.secondary_color = secondary;
+
+            foreach (Control ctrl in buttonPanel.Controls)
+            {
+                if (ctrl is Button btn)
+                {
+                    btn.FlatStyle = FlatStyle.Flat;
+                    btn.BackColor = secondary_color;
+                    btn.FlatAppearance.BorderSize = 0;
+                }
+            }
+
         }
         protected void EnableConsoleLog()
         {
@@ -115,8 +133,7 @@ namespace KenshiUtilities
 
             generalLog = new TextBox
             {
-                Dock = DockStyle.Bottom,
-                Height = 120,
+                Dock = DockStyle.Fill,
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
@@ -124,8 +141,12 @@ namespace KenshiUtilities
                 BackColor = Color.Black,
                 ForeColor = Color.LightGreen
             };
-            mainlayout.Controls.Add(generalLog, 0, 2);
-            mainlayout.SetColumnSpan(generalLog, 2);
+
+            var logPanel = new Panel { Dock = DockStyle.Fill };
+            logPanel.Controls.Add(generalLog);
+
+            mainlayout.Controls.Add(logPanel, 0, 2);
+            mainlayout.SetColumnSpan(logPanel, 2);
         }
         protected void LogMessage(string message)
         {
@@ -134,39 +155,18 @@ namespace KenshiUtilities
             generalLog.SelectionStart = 0;
             generalLog.ScrollToCaret();
         }
-        protected void SetLogMessages(string message)
-        {
-            if (generalLog == null) return;
-            generalLog.Clear();
-            generalLog.AppendText($"{message}\n");
-            generalLog.SelectionStart = 0;
-            generalLog.ScrollToCaret();
+        protected void ReportProgress(int done,string labelText) {
+            if (IsHandleCreated)
+                Invoke((Action)(() =>
+                {
+                    progressBar.Value = done;
+                    progressLabel.Text = labelText;
+                }));
         }
-        protected void RunWithProgress<T1, T2>(IEnumerable<(T1, T2)> pairs,Action<T1, T2, int, int> action)
-        {
-            int total = pairs.Count();
-            progressBar.Minimum = 0;
-            progressBar.Maximum = total;
-            progressBar.Value = 0;
-
-            int index = 0;
-            foreach (var (first, second) in pairs)
-            {
-                action(first, second, index, total);
-
-                progressBar.Value = index + 1;
-                progressLabel.Text = $"Processing {index + 1}/{total}";
-                progressLabel.Refresh();
-                Application.DoEvents();
-
-                index++;
-            }
-
-            progressLabel.Text = "Done!";
-         }
+        
         protected virtual void SetupColumns() { }
 
-        protected void AddButton(string text, EventHandler onClick)
+        protected Button AddButton(string text, EventHandler onClick)
         {
 
             var button = new Button
@@ -175,8 +175,11 @@ namespace KenshiUtilities
                 AutoSize = true
             };
             button.Click += onClick;
-
+            button.FlatStyle = FlatStyle.Flat;
+            button.BackColor = secondary_color;
+            button.FlatAppearance.BorderSize = 0;
             buttonPanel.Controls.Add(button);
+            return button;
         }
 
         private void ModsListView_ColumnClick(object sender, ColumnClickEventArgs e)
@@ -348,13 +351,27 @@ namespace KenshiUtilities
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
         }
+        public static void GenerateTextFile(string content, string filePath)
+        {
+            try
+            {
+                string? directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+                File.WriteAllText(filePath, content);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error writing file: {ex.Message}");
+            }
+        }
 
         private void PopulateModsListView()
         {
             modsListView.Items.Clear();
             originalOrder.Clear();
 
-            foreach (var mod in modM.LoadSelectedMods())
+            foreach (var mod in selectedMods)
             {
                 if (!mergedMods.ContainsKey(mod))
                     mergedMods[mod] = new ModItem(mod);
