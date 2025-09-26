@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows.Forms;
 
@@ -29,27 +30,29 @@ namespace KenshiCore
     {
         public ListView modsListView;
         private ImageList modIcons = new ImageList();
-        private Dictionary<string, ModItem> mergedMods = new Dictionary<string, ModItem>();
+        protected Dictionary<string, ModItem> mergedMods = new Dictionary<string, ModItem>();
         private List<string> gameDirMods = new List<string>();
         private List<string> selectedMods = new List<string>();
         private List<string> workshopMods = new List<string>();
         private Dictionary<string, ListViewItem> modItemsLookup = new();
         private List<ListViewItem> originalOrder = new();
         protected TextBox? generalLog;
-        protected ProgressBar progressBar;
+        private ProgressBar progressBar;
         private Label progressLabel;
         private ModManager modM = new ModManager(new ReverseEngineer());
         private Button openGameDirButton;
         private Button openSteamLinkButton;
         private Button copyToGameDirButton;
         private Color secondary_color = Color.White;
+        protected Task InitializationTask { get; private set; }
+        private List<(ColumnHeader header, Func<ModItem, string> selector)> columnDefs= new();
         protected TableLayoutPanel mainlayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
         };
         protected Panel? listContainer;
-        private FlowLayoutPanel buttonPanel = new FlowLayoutPanel
+        protected FlowLayoutPanel buttonPanel = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
@@ -64,8 +67,7 @@ namespace KenshiCore
             mainlayout.RowCount = 3;
             mainlayout.RowStyles.Clear();
             mainlayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F));
-            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 70F));
-            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
+            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
             mainlayout.ColumnCount = 2;
             mainlayout.ColumnStyles.Clear();
@@ -85,7 +87,6 @@ namespace KenshiCore
                 View = View.Details,
                 FullRowSelect = true
             };
-            modsListView.Columns.Add("Mod Name", -2, HorizontalAlignment.Left);
             mainlayout.Controls.Add(modsListView, 0, 1);
 
             modsListView.SelectedIndexChanged += SelectedIndexChanged;
@@ -100,16 +101,27 @@ namespace KenshiCore
             copyToGameDirButton = AddButton("Copy to GameDir", CopyToGameDirButton_Click);
 
 
-
+            AddColumn("Mod Name", mod => mod.Name,300);
 
             AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
-
-            _= InitializeAsync();
+            InitializationTask = InitializeAsync();
+        }
+        protected void AddColumn(string title, Func<ModItem, string> selector, int width = -2)
+        {
+            var col = new ColumnHeader
+            {
+                Text = title,
+                Width = width,
+                TextAlign = HorizontalAlignment.Left
+            };
+            modsListView.Columns.Add(col);
+            columnDefs.Add((col, selector));
+            
         }
         protected override async void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            await InitializeAsync();
+            await InitializationTask;
         }
         protected void setColors(Color main, Color secondary)
         {
@@ -145,6 +157,9 @@ namespace KenshiCore
             var logPanel = new Panel { Dock = DockStyle.Fill };
             logPanel.Controls.Add(generalLog);
 
+            mainlayout.RowCount++;
+            mainlayout.RowStyles.Add(new RowStyle(SizeType.Percent, 30F));
+
             mainlayout.Controls.Add(logPanel, 0, 2);
             mainlayout.SetColumnSpan(logPanel, 2);
         }
@@ -155,6 +170,18 @@ namespace KenshiCore
             generalLog.SelectionStart = 0;
             generalLog.ScrollToCaret();
         }
+        protected void InitializeProgress(int init, int total)
+        {
+            if (IsHandleCreated)
+                Invoke((Action)(() =>
+                {
+                    progressBar.Value = init;
+                    progressBar.Minimum = init;
+                    progressBar.Maximum = total;
+                    progressLabel.Text = "";
+                }));
+        }
+
         protected void ReportProgress(int done,string labelText) {
             if (IsHandleCreated)
                 Invoke((Action)(() =>
@@ -238,7 +265,6 @@ namespace KenshiCore
                 modIcons.ImageSize = new Size(48, 16);
                 modsListView.SmallImageList = modIcons;
                 PopulateModsListView();
-                modsListView.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
 
                 progressBar.Style = ProgressBarStyle.Continuous;
                 progressLabel.Text = "Ready";
