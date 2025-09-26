@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <PropertyGroup>
+  <IsPublishable>false</IsPublishable>
+</PropertyGroup>
 
   <ItemGroup>
     <None Remove="icons\kenshiicon.png" />

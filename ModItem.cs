@@ -58,15 +58,11 @@ namespace KenshiCore
         }
         public string getBackupFilePath()
         {
-            return Path.Combine(Path.GetDirectoryName(getModFilePath()), Path.GetFileNameWithoutExtension(Name) + ".backup");
-
-            //return Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(Name), Path.GetFileNameWithoutExtension(Name)+".backup");
+            return Path.Combine(Path.GetDirectoryName(getModFilePath())!, Path.GetFileNameWithoutExtension(Name) + ".backup");
         }
         public string getDictFilePath()
         {
-           return Path.Combine(Path.GetDirectoryName(getModFilePath()), Path.GetFileNameWithoutExtension(Name) + ".dict");
-           // getModFilePath();gfdr
-           //return Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(Name), Path.GetFileNameWithoutExtension(Name) + ".dict");
+           return Path.Combine(Path.GetDirectoryName(getModFilePath())!, Path.GetFileNameWithoutExtension(Name) + ".dict");
         }
         public string? getModFilePath()
         {
