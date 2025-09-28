@@ -103,7 +103,6 @@ namespace KenshiCore
 
             AddColumn("Mod Name", mod => mod.Name,300);
 
-            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
             InitializationTask = InitializeAsync();
         }
         protected void AddColumn(string title, Func<ModItem, string> selector, int width = -2)
@@ -162,6 +161,8 @@ namespace KenshiCore
 
             mainlayout.Controls.Add(logPanel, 0, 2);
             mainlayout.SetColumnSpan(logPanel, 2);
+
+            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
         }
         protected void LogMessage(string message)
         {
