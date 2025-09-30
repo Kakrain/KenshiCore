@@ -95,14 +95,38 @@ namespace KenshiCore
             }
             return result;
         }
+        public void SetManualSteamPath(string path)
+        {
+            if (!Directory.Exists(path)) throw new DirectoryNotFoundException(path);
+
+            steamInstallPath = path;
+            workshopModsPath = Path.Combine(steamInstallPath, "steamapps", "workshop", "content", "233860");
+        }
+        public void SetManualKenshiPath(string path)
+        {
+            if (!Directory.Exists(path)) throw new DirectoryNotFoundException(path);
+
+            kenshiPath = path;
+            gamedirModsPath = Path.Combine(kenshiPath, "mods");
+
+            // If steam path was found, set workshop, otherwise leave null
+            if (!string.IsNullOrEmpty(steamInstallPath))
+                workshopModsPath = Path.Combine(steamInstallPath!, "steamapps", "workshop", "content", "233860");
+            else
+                workshopModsPath = null;
+        }
         public List<string> LoadWorkshopMods()
         {
             var result = new List<string>();
-            if (!Directory.Exists(workshopModsPath))
+            if (string.IsNullOrEmpty(workshopModsPath) || !Directory.Exists(workshopModsPath))
+            {
+                return result;
+            }
+            /*if (!Directory.Exists(workshopModsPath))
             {
                 MessageBox.Show("workshop folder not found!");
                 return result;
-            }
+            }*/
             foreach (var folder in Directory.GetDirectories(workshopModsPath))
             {
                 var files = Directory.GetFiles(folder, "*.mod");
