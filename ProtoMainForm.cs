@@ -48,7 +48,7 @@ namespace KenshiCore
         private Color secondary_color = Color.White;
         private TextBox kenshiDirTextBox;
         private TextBox steamDirTextBox;
-        protected Task InitializationTask { get; private set; }
+        protected Task? InitializationTask { get; private set; }
         private List<(ColumnHeader header, Func<ModItem, string> selector)> columnDefs= new();
         protected TableLayoutPanel mainlayout = new TableLayoutPanel
         {
@@ -84,12 +84,6 @@ namespace KenshiCore
             mainlayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             Controls.Add(mainlayout);
 
-            /*var dirPanel = new FlowLayoutPanel
-            {
-                Dock = DockStyle.Top,
-                AutoSize = true,
-                FlowDirection = FlowDirection.LeftToRight
-            };*/
             var dirTable = new TableLayoutPanel
             {
                 Dock = DockStyle.Top,
@@ -101,40 +95,6 @@ namespace KenshiCore
             dirTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));  // textbox
             dirTable.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));  // button
     
-            /*var kenshidirLabel = new Label { Text = "Kenshi Directory:", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
-            kenshiDirTextBox = new TextBox { Width = 400 };
-            var browseButtonkenshiDir = new Button { Text = "Browse...",AutoSize = true };
-
-
-
-            browseButtonkenshiDir.Click += (s, e) =>
-            {
-                using var dialog = new FolderBrowserDialog { Description = "Select Kenshi installation folder" };
-                if (dialog.ShowDialog() == DialogResult.OK)
-                {
-                    string selected = dialog.SelectedPath;
-                    if (File.Exists(Path.Combine(selected, "kenshi.exe")) && Directory.Exists(Path.Combine(selected, "data")))
-                    {
-                        kenshiDirTextBox.Text = selected;
-                        modM.SetManualKenshiPath(selected);
-                        _ = InitializeAsync(); // reload mods
-                    }
-                    else
-                    {
-                        MessageBox.Show("That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).");
-                    }
-                }
-            };
-
-            dirPanel.Controls.Add(kenshidirLabel);
-            dirPanel.Controls.Add(kenshiDirTextBox);
-            dirPanel.Controls.Add(browseButtonkenshiDir);
-
-            var workshopdirLabel = new Label { Text = "Steam Directory:", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
-            steamDirTextBox = new TextBox { Width = 400 };
-            var browseButtonsteamDir = new Button { Text = "Browse...", AutoSize = true };
-            */
-
             var kenshiLabel = new Label { Text = "Kenshi Directory:", AutoSize = true };
             kenshiDirTextBox = new TextBox { Width = 300 };
             var browseKenshi = new Button { Text = "Browse...", AutoSize = true };
@@ -144,30 +104,6 @@ namespace KenshiCore
             steamDirTextBox = new TextBox { Width = 300 };
             var browseSteam = new Button { Text = "Browse...", AutoSize = true };
             browseSteam.Click += BrowseSteam_Click;
-            /*browseButtonsteamDir.Click += (s, e) =>
-            {
-                using var dialog = new FolderBrowserDialog { Description = "Select Steam workshop folder" };
-                if (dialog.ShowDialog() == DialogResult.OK)
-                {
-                    string selected = dialog.SelectedPath;
-                    if (File.Exists(Path.Combine(selected, "kenshi.exe")) && Directory.Exists(Path.Combine(selected, "data")))
-                    {
-                        kenshiDirTextBox.Text = selected;
-                        modM.SetManualKenshiPath(selected);
-                        _ = InitializeAsync(); // reload mods
-                    }
-                    else
-                    {
-                        MessageBox.Show("That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).");
-                    }
-                }
-            };*/
-
-            //dirPanel.Controls.Add(kenshidirLabel);
-            //dirPanel.Controls.Add(kenshiDirTextBox);
-            //dirPanel.Controls.Add(browseButtonsteamDir);
-
-
 
             dirTable.Controls.Add(kenshiLabel, 0, 0);
             dirTable.Controls.Add(kenshiDirTextBox, 1, 0);
@@ -176,13 +112,6 @@ namespace KenshiCore
             dirTable.Controls.Add(steamLabel, 0, 1);
             dirTable.Controls.Add(steamDirTextBox, 1, 1);
             dirTable.Controls.Add(browseSteam, 2, 1);
-
-
-            /*dirPanel.Controls.AddRange(new Control[]
-            {
-                kenshiLabel, kenshiDirTextBox, browseKenshi,
-                steamLabel, steamDirTextBox, browseSteam
-            });*/
 
             mainlayout.Controls.Add(dirTable, 0, 0);
             mainlayout.SetColumnSpan(dirTable, 2);
@@ -203,7 +132,6 @@ namespace KenshiCore
             };
 
             listHost.Controls.Add(modsListView);
-            //mainlayout.Controls.Add(modsListView, 0, 2);
             mainlayout.Controls.Add(listHost, 0, 2);
             modsListView.SelectedIndexChanged += SelectedIndexChanged;
             modsListView.ColumnClick += ModsListView_ColumnClick!;
@@ -226,13 +154,7 @@ namespace KenshiCore
                 kenshiDirTextBox.Text = Path.GetDirectoryName(ModManager.gamedirModsPath);
             if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
             {
-                // workshopModsPath = <steam>\steamapps\workshop\content\233860
-                // We want just the Steam root
-                var steamRoot = Directory.GetParent(
-                                    Directory.GetParent(
-                                        Directory.GetParent(ModManager.workshopModsPath).FullName
-                                    ).FullName
-                                ).FullName;
+                var steamRoot = Directory.GetParent(Directory.GetParent(Directory.GetParent(ModManager.workshopModsPath)!.FullName)!.FullName!)!.FullName;
                 steamDirTextBox.Text = steamRoot;
             }
             else
@@ -308,7 +230,8 @@ namespace KenshiCore
         protected override async void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            await InitializationTask;
+            if(InitializationTask!=null)
+                await InitializationTask;
         }
         protected void setColors(Color main, Color secondary)
         {

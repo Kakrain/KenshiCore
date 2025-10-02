@@ -6,6 +6,7 @@ using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore
 {
@@ -67,7 +68,7 @@ namespace KenshiCore
             {
                 modData.Records.Add(ParseRecord(reader));
             }
-
+            TryParseDetails(modData.Header);
             long leftover = fs.Length - fs.Position;
             if (leftover > 0)
             {
@@ -77,8 +78,10 @@ namespace KenshiCore
         }
         public void SaveModFile(string path)
         {
-            using var fs = File.OpenWrite(path);
+            using var fs = File.Create(path);// OpenWrite
             using var writer = new BinaryWriter(fs, Encoding.UTF8);
+            modData.Header!.Details=BuildDetails(modData.Header!);
+            modData.Header.DetailsLength = modData.Header.Details!.Length;
 
             WriteHeader(writer, modData.Header!);
             foreach (var record in modData.Records!)
@@ -87,6 +90,151 @@ namespace KenshiCore
             if (modData.Leftover != null)
                 writer.Write(modData.Leftover);
         }
+        public void TryParseDetails(ModHeader header)
+        {
+            if (header.FileType != 17 || header.Details == null)
+                return;
+
+            using var ms = new MemoryStream(header.Details);
+            using var reader = new BinaryReader(ms, Encoding.UTF8);
+
+            long lastGoodPos = ms.Position;
+
+            T? TryRead<T>(Func<BinaryReader, T> func, out bool success)
+            {
+                long startPos = ms.Position;
+                try
+                {
+                    var val = func(reader);
+                    success = true;
+                    lastGoodPos = ms.Position; // update last successfully read position
+                    return val;
+                }
+                catch
+                {
+                    ms.Position = startPos;
+                    success = false;
+                    return default;
+                }
+            }
+
+            bool ok;
+            if (ms.Position < ms.Length)
+                header.Author = TryRead(ReadString, out ok) ?? null;
+            if (ms.Position < ms.Length)
+                header.Description = TryRead(ReadString, out ok) ?? null;
+            if (ms.Position < ms.Length)
+                header.Dependencies = TryRead(ReadString, out ok) ?? null;
+            if (ms.Position < ms.Length)
+                header.References = TryRead(ReadString, out ok) ?? null;
+            // Optional fields
+            if (ms.Position < ms.Length)
+                header.SaveCount = TryRead(r => r.ReadUInt32(), out ok);
+            if (ms.Position < ms.Length)
+                header.LastMerge = TryRead(r => r.ReadUInt32(), out ok);
+            if (ms.Position < ms.Length)
+                header.MergeEntries = TryRead(ReadMergeEntries, out ok) ?? null;
+            if (ms.Position < ms.Length)
+                header.DeleteRequests = TryRead(ReadDeleteRequests, out ok) ?? null;
+
+            // Keep remaining bytes
+            if (lastGoodPos != ms.Length)
+                header.UnparsedDetails = ms.ToArray()[(int)lastGoodPos..];
+        }
+        
+        public byte[] BuildDetails(ModHeader header)
+        {
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms, Encoding.UTF8);
+
+            // Always write the "known" fields
+            if(header.Author!=null)
+                WriteString(writer, header.Author);
+            if (header.Description != null)
+                WriteString(writer, header.Description);
+            if (header.Dependencies != null)
+                WriteString(writer, header.Dependencies);
+            if (header.References != null)
+                WriteString(writer, header.References);
+            if(header.SaveCount != null)
+                writer.Write(header.SaveCount.Value);
+            if (header.LastMerge != null)
+                writer.Write(header.LastMerge.Value);
+            if(header.MergeEntries!=null)
+                WriteMergeEntries(writer, header.MergeEntries);
+            if (header.DeleteRequests != null)
+                WriteDeleteRequests(writer, header.DeleteRequests);
+            if (header.UnparsedDetails != null && header.UnparsedDetails.Length > 0)
+            {
+                writer.Write(header.UnparsedDetails);
+            }
+            return ms.ToArray();
+        }
+        private Dictionary<string, MergeEntry> ReadMergeEntries(BinaryReader reader)
+        {
+            byte count = reader.ReadByte();
+            var dict = new Dictionary<string, MergeEntry>(count);
+            for (int i = 0; i < count; i++)
+            {
+                string key = ReadString(reader);
+                dict[key] = new MergeEntry(reader.ReadUInt32(), reader.ReadUInt32());
+            }
+            return dict;
+        }
+        private T? SafeRead<T>(BinaryReader reader, Func<BinaryReader, T> readFunc) where T : class
+        {
+            if (reader.BaseStream.Position >= reader.BaseStream.Length)
+                return null;
+
+            try
+            {
+                return readFunc(reader);
+            }
+            catch (EndOfStreamException)
+            {
+                return null;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return null;
+            }
+        }
+        private void WriteMergeEntries(BinaryWriter writer, Dictionary<string, MergeEntry> entries)
+        {
+            writer.Write((byte)entries.Count);
+            foreach (var kv in entries)
+            {
+                WriteString(writer, kv.Key);
+                writer.Write(kv.Value.SaveCount);
+                writer.Write(kv.Value.LastMerge);
+            }
+        }
+
+        private Dictionary<string, DeleteRequest> ReadDeleteRequests(BinaryReader reader)
+        {
+            byte count = reader.ReadByte();
+            var dict = new Dictionary<string, DeleteRequest>(count);
+            for (int i = 0; i < count; i++)
+            {
+                string key = ReadString(reader);
+                dict[key] = new DeleteRequest(reader.ReadUInt32(), ReadString(reader));
+            }
+            return dict;
+        }
+
+        private void WriteDeleteRequests(BinaryWriter writer, Dictionary<string, DeleteRequest> requests)
+        {
+            writer.Write((byte)requests.Count);
+            foreach (var kv in requests)
+            {
+                WriteString(writer, kv.Key);
+                writer.Write(kv.Value.saveCount);
+                WriteString(writer, kv.Value.Target);
+            }
+        }
+        // Helpers
+
+
         private ModHeader ParseHeader(BinaryReader reader)
         {
             var header = new ModHeader();
@@ -120,10 +268,10 @@ namespace KenshiCore
             {
                 case 16:
                     WriteInt(writer, header.ModVersion);
-                    WriteString(writer, header.Author);
-                    WriteString(writer, header.Description);
-                    WriteString(writer, header.Dependencies);
-                    WriteString(writer, header.References);
+                    WriteString(writer, header.Author!);
+                    WriteString(writer, header.Description!);
+                    WriteString(writer, header.Dependencies!);
+                    WriteString(writer, header.References!);
                     WriteInt(writer, header.UnknownInt);
                     WriteInt(writer, header.RecordCount);
                     break;
@@ -289,8 +437,28 @@ namespace KenshiCore
             }
             return Tuple.Create(sba.ToString(), sbs.ToString());
         }
-        
+        //for debugging purposes.
+        public void generateResaves(string start= "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/")
+        {
+            //string start = "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/";
+            //string start = "C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860";
 
+            foreach (string folder in Directory.GetDirectories(start))
+            {
+                System.Diagnostics.Debug.WriteLine(folder);
+                foreach (string file in Directory.GetFiles(folder, "*.mod"))
+                {
+                    System.Diagnostics.Debug.WriteLine(file);
+                    this.LoadModFile(file);
+                    string resavedPath = Path.Combine(
+                        Path.GetDirectoryName(file)!,
+                        Path.GetFileNameWithoutExtension(file) + ".resaved"
+                    );
+                    this.SaveModFile(resavedPath);
+                }
+            }
+
+        }
     }
     public class ModData
     {
@@ -298,19 +466,49 @@ namespace KenshiCore
         public List<ModRecord>? Records { get; set; }
         public byte[]? Leftover { get; set; }
     }
+    public class MergeEntry
+    {
+        public uint SaveCount { get; set; }
+        public uint LastMerge { get; set; }
+
+        public MergeEntry(uint saveCount, uint lastMerge)
+        {
+            SaveCount = saveCount;
+            LastMerge = lastMerge;
+        }
+    }
+    public class DeleteRequest
+    {
+        public uint saveCount { get; set; }
+        public string Target { get; set; }
+
+        public DeleteRequest(uint savecount, string target)
+        {
+            saveCount = savecount;
+            Target = target;
+        }
+    }
     public class ModHeader
     {
         public int FileType { get; set; }
         public int ModVersion { get; set; }
-        public string Author { get; set; } = "";
-        public string Description { get; set; } = "";
-        public string Dependencies { get; set; } = "";
-        public string References { get; set; } = "";
+        public string? Author { get; set; } = null;
+        public string? Description { get; set; } = null;
+        public string? Dependencies { get; set; } = null;
+        public string? References { get; set; } = null;
         public int UnknownInt { get; set; }
         public int RecordCount { get; set; }
 
-        public int DetailsLength { get; set; }
+
+        // Only for v17
+        public uint? SaveCount { get; set; }
+        public uint? LastMerge { get; set; }
+        public Dictionary<string, MergeEntry>? MergeEntries { get; set; } = null;
+        public Dictionary<string, DeleteRequest>? DeleteRequests { get; set; } = null;
+
         public byte[]? Details { get; set; }
+        public byte[]? UnparsedDetails { get; set; }
+        public int DetailsLength { get; set; }
     }
     public class ModRecord
     {
