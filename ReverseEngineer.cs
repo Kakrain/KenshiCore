@@ -1,11 +1,14 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using System.Windows.Forms;
+using System.Xml.Linq;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore
@@ -509,6 +512,8 @@ namespace KenshiCore
         public byte[]? Details { get; set; }
         public byte[]? UnparsedDetails { get; set; }
         public int DetailsLength { get; set; }
+
+        
     }
     public class ModRecord
     {
@@ -519,6 +524,9 @@ namespace KenshiCore
         public string StringId { get; set; } = "";
         public int ModDataType { get; set; }
 
+        private HashSet<string>? changed = null;
+        private string sep = ":";
+
         public Dictionary<string, bool> BoolFields { get; set; } = new();
         public Dictionary<string, float> FloatFields { get; set; } = new();
         public Dictionary<string, int> LongFields { get; set; } = new();
@@ -528,6 +536,37 @@ namespace KenshiCore
         public Dictionary<string, string> FilenameFields { get; set; } = new();
         public Dictionary<string, Dictionary<string, int[]>>? ExtraDataFields { get; set; }
         public List<ModInstance>? InstanceFields { get; set; }
+
+        private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields,string name)
+        {
+            if (fields == null)
+                return;
+            foreach (var f in fields)
+            {
+                changed!.Add(name + sep + f.Key);
+            }
+        }
+        public HashSet<string> getChangedFields()
+        {
+            if (changed != null)
+            {
+                return changed;
+            }
+            changed = new HashSet<string>();
+
+
+            getChangedSpecificFields(this.BoolFields, "bool");
+            getChangedSpecificFields(this.FloatFields, "float");
+            getChangedSpecificFields(this.LongFields, "long");
+            getChangedSpecificFields(this.Vec3Fields, "vec3");
+            getChangedSpecificFields(this.Vec4Fields, "vec4");
+            getChangedSpecificFields(this.StringFields, "string");
+            getChangedSpecificFields(this.FilenameFields, "filename");
+            getChangedSpecificFields(this.ExtraDataFields, "extradata");
+
+            return changed;
+        }
+
         private static readonly Dictionary<int, string> ChangeTypeCodes = new Dictionary<int, string>
         {
             { -2147483646,"NEW"},{ -2147483647,"CHANGED_A"},{ -2147483645,"CHANGED_B"}

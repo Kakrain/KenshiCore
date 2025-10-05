@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Drawing;
 using System.Reflection;
+using System.Text;
 using System.Windows.Forms;
 
 namespace KenshiCore
@@ -12,8 +13,6 @@ namespace KenshiCore
         private Button? clearButton;
         private Button? saveButton;
         private string title = "General";
-        private static readonly Color normal_color = Color.FromArgb(Color.LightGreen.ToArgb());
-        //private int translationCount = 0;
         private DateTime startTime;
 
         public GeneralLogForm()
@@ -84,7 +83,6 @@ namespace KenshiCore
             clearButton.Click += (s, e) =>
             {
                 logTextBox.Clear();
-                //translationCount = 0;
                 UpdateStatus();
             };
 
@@ -98,8 +96,47 @@ namespace KenshiCore
 
             layout.Controls.Add(clearButton, 0, 2);
             layout.Controls.Add(saveButton, 1, 2);
-
+            this.FormClosing += (s, e) =>
+            {
+                if (e.CloseReason == CloseReason.UserClosing)
+                {
+                    e.Cancel = true; // cancel the close
+                    this.Hide();     // just hide instead
+                }
+            };
             this.Controls.Add(layout);
+        }
+        public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<IEnumerable<(string, Color)>>(LogBlocks), blocks);
+                return;
+            }
+            logTextBox.SuspendLayout();
+            logTextBox.Visible = false;
+
+            try
+            {
+                foreach (var (text, color) in blocks)
+                {
+                    logTextBox.SelectionStart = logTextBox.TextLength;
+                    logTextBox.SelectionLength = 0;
+                    logTextBox.SelectionColor = color;
+                    logTextBox.AppendText(text + Environment.NewLine);
+                }
+            }
+            finally
+            {
+                logTextBox.Visible = true;
+                logTextBox.ResumeLayout();
+                logTextBox.Invalidate();
+            }
+            logTextBox.SelectionStart = 0;// logTextBox.TextLength;
+            //logTextBox.SelectionLength = 0;
+            logTextBox.ScrollToCaret();
+
+            UpdateStatus();
         }
 
         public void Log(string text,Color? text_color=null)
@@ -120,21 +157,11 @@ namespace KenshiCore
             logTextBox.SelectionColor = Color.Gray;
             logTextBox.AppendText($"[{timestamp}] ");
 
-            //logTextBox.SelectionColor = color;
-            //logTextBox.AppendText($"{status} ");
 
-            // Add original text
             logTextBox.SelectionColor = (Color)(text_color == null ? Color.LightGreen : text_color);//Color.LightBlue;
             logTextBox.AppendText(text);
             logTextBox.AppendText(Environment.NewLine);
 
-            // Add translated text
-            //logTextBox.SelectionColor = success ? Color.LightGreen : Color.Yellow;
-            //logTextBox.AppendText($"    RU: {translated}");
-            //logTextBox.AppendText(Environment.NewLine);
-            //logTextBox.AppendText(Environment.NewLine);
-
-            // Auto-scroll to bottom
             logTextBox.SelectionStart = logTextBox.TextLength;
             logTextBox.ScrollToCaret();
 
@@ -159,11 +186,6 @@ namespace KenshiCore
             logTextBox.AppendText($"❌ ERROR: {error}");
             logTextBox.AppendText(Environment.NewLine);
 
-            ////logTextBox.SelectionColor = Color.Pink;
-            //logTextBox.AppendText($"    {error}");
-            //logTextBox.AppendText(Environment.NewLine);
-            //logTextBox.AppendText(Environment.NewLine);
-
             logTextBox.SelectionStart = logTextBox.TextLength;
             logTextBox.ScrollToCaret();
 
@@ -174,7 +196,6 @@ namespace KenshiCore
         {
             var elapsed = DateTime.Now - startTime;
             statusLabel!.Text = $"{title} Log - | Elapsed: {elapsed:hh\\:mm\\:ss}";
-            //statusLabel!.Text = $"Translation Log - {translationCount} translations | Elapsed: {elapsed:hh\\:mm\\:ss}";
         }
 
         private void SaveLog_Click(object? sender, EventArgs e)

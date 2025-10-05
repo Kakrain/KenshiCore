@@ -2,7 +2,10 @@
 using System.Collections;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Drawing.Interop;
+using System.Reflection;
 using System.Windows.Forms;
+using MethodInvoker = System.Windows.Forms.MethodInvoker;
 
 class ListViewColumnSorter : IComparer
 {
@@ -19,7 +22,19 @@ class ListViewColumnSorter : IComparer
         string textX = itemX.SubItems[Column].Text;
         string textY = itemY.SubItems[Column].Text;
 
-        int result = string.Compare(textX, textY, StringComparison.CurrentCultureIgnoreCase);
+        int result;// = string.Compare(textX, textY, StringComparison.CurrentCultureIgnoreCase);
+
+
+        if (int.TryParse(textX, out int numX) && int.TryParse(textY, out int numY))
+        {
+            result = numX.CompareTo(numY);
+        }
+        else
+        {
+            result = string.Compare(textX, textY, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+
         return Order == SortOrder.Ascending ? result : -result;
     }
 }
@@ -38,7 +53,7 @@ namespace KenshiCore
         private List<string> workshopMods = new List<string>();
         private Dictionary<string, ListViewItem> modItemsLookup = new();
         private List<ListViewItem> originalOrder = new();
-        protected TextBox? generalLog;
+        //protected TextBox? generalLog;
         private ProgressBar progressBar;
         private Label progressLabel;
         private ModManager modM;
@@ -49,7 +64,9 @@ namespace KenshiCore
         private TextBox kenshiDirTextBox;
         private TextBox steamDirTextBox;
         protected Task? InitializationTask { get; private set; }
-        private List<(ColumnHeader header, Func<ModItem, string> selector)> columnDefs= new();
+        private List<(ColumnHeader header, Func<ModItem, object> selector)> columnDefs= new();
+        private GeneralLogForm? logForm;
+        private Button ShowLogButton;
         protected TableLayoutPanel mainlayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -145,11 +162,13 @@ namespace KenshiCore
             copyToGameDirButton = AddButton("Copy to GameDir", CopyToGameDirButton_Click);
 
 
+            ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
+
             AddColumn("Mod Name", mod => mod.Name,300);
+            logForm = new GeneralLogForm();
 
 
-
-            modM=new ModManager(new ReverseEngineer());
+            modM =new ModManager(new ReverseEngineer());
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath) && Directory.Exists(ModManager.gamedirModsPath))
                 kenshiDirTextBox.Text = Path.GetDirectoryName(ModManager.gamedirModsPath);
             if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
@@ -170,6 +189,32 @@ namespace KenshiCore
                 progressLabel.Text = "Please set Kenshi directory.";
             }
            // InitializationTask = InitializeAsync();
+        }
+        public GeneralLogForm getLogForm()
+        {
+            if (logForm == null || logForm.IsDisposed)
+            {
+                logForm = new GeneralLogForm();
+            }
+            return logForm;
+        }
+
+        private void ShowLogButton_Click(object? sender, EventArgs e)
+        {
+            logForm = getLogForm();
+            /*if (logForm == null || logForm.IsDisposed)
+            {
+                logForm = new GeneralLogForm();
+            }*/
+
+            if (logForm.Visible)
+            {
+                logForm.BringToFront();
+            }
+            else
+            {
+                logForm.Show(this);
+            }
         }
         private void BrowseKenshi_Click(object? sender, EventArgs e)
         {
@@ -215,17 +260,43 @@ namespace KenshiCore
                 InitializationTask = InitializeAsync();
             }
         }
-        protected void AddColumn(string title, Func<ModItem, string> selector, int width = -2)
+        protected void AddColumn(string title, Func<ModItem, object> selector, int width = -2)
         {
+            if (width == -2)
+                width = title.Length*8;
             var col = new ColumnHeader
             {
                 Text = title,
                 Width = width,
-                TextAlign = HorizontalAlignment.Left
+                TextAlign = HorizontalAlignment.Left,
+                Tag = title // store original title
             };
             modsListView.Columns.Add(col);
             columnDefs.Add((col, selector));
             
+        }
+        private void UpdateColumnSortMarker(int sortedColumn, SortOrder order)
+        {
+            for (int i = 0; i < modsListView.Columns.Count; i++)
+            {
+                var col = modsListView.Columns[i];
+                string baseText = col.Tag?.ToString() ?? col.Text;
+
+                if (i == sortedColumn)
+                {
+                    string arrow = order switch
+                    {
+                        SortOrder.Ascending => " ▲",
+                        SortOrder.Descending => " ▼",
+                        _ => " ■"
+                    };
+                    col.Text = baseText + arrow;
+                }
+                else
+                {
+                    col.Text = baseText; // reset other columns
+                }
+            }
         }
         protected override async void OnLoad(EventArgs e)
         {
@@ -249,7 +320,7 @@ namespace KenshiCore
             }
 
         }
-        protected void EnableConsoleLog()
+        /*protected void EnableConsoleLog()
         {
             if (generalLog != null) return; // already enabled
 
@@ -273,15 +344,15 @@ namespace KenshiCore
             mainlayout.Controls.Add(logPanel, 0, 3);
             mainlayout.SetColumnSpan(logPanel, 2);
 
-            AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
-        }
-        protected void LogMessage(string message)
+            //AddButton("Generate Console.log", (sender, e) => GenerateTextFile(generalLog!.Text, "Console.log"));
+        }*/
+        /*protected void LogMessage(string message)
         {
             if (generalLog == null) return;
             generalLog.AppendText($"{message}\n");
             generalLog.SelectionStart = 0;
             generalLog.ScrollToCaret();
-        }
+        }*/
         protected void InitializeProgress(int init, int total)
         {
             if (IsHandleCreated)
@@ -354,7 +425,8 @@ namespace KenshiCore
             {
                 modsListView.Sort();
             }
-            modsListView.Invalidate();
+            //modsListView.Invalidate();
+            UpdateColumnSortMarker(sorter.Column, sorter.Order);
         }
 
         private async Task InitializeAsync()
@@ -368,7 +440,7 @@ namespace KenshiCore
 
             modIcons.ImageSize = new Size(48, 16);
             modsListView.SmallImageList = modIcons;
-            modsListView.OwnerDraw = true;
+            modsListView.OwnerDraw = false;//true;
             modsListView.DrawColumnHeader += ModsListView_DrawColumnHeader;
             modsListView.DrawItem += (s, e) => e.DrawDefault = true;
             modsListView.DrawSubItem += (s, e) => e.DrawDefault = true;
@@ -493,20 +565,6 @@ namespace KenshiCore
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
         }
-        public static void GenerateTextFile(string content, string filePath)
-        {
-            try
-            {
-                string? directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory))
-                    Directory.CreateDirectory(directory);
-                File.WriteAllText(filePath, content);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error writing file: {ex.Message}");
-            }
-        }
 
         private void PopulateModsListView()
         {
@@ -541,12 +599,19 @@ namespace KenshiCore
                 Image icon = mod.CreateCompositeIcon();
                 if (!modIcons.Images.ContainsKey(mod.Name))
                     modIcons.Images.Add(mod.Name, icon);
-                // Add to ListView
-                var item = new ListViewItem(new[] { mod.Name, mod.Language })
+                var item = new ListViewItem(new[] { columnDefs[0].selector(mod)?.ToString() ?? "" })
                 {
                     Tag = mod,
                     ImageKey = mod.Name
                 };
+
+                for (int i = 1; i < columnDefs.Count; i++)
+                {
+                    var value = columnDefs[i].selector(mod); // call your selector
+                    var subItem = new ListViewItem.ListViewSubItem(item, value?.ToString() ?? "");
+                    item.SubItems.Add(subItem);
+                }
+
                 item.UseItemStyleForSubItems = false;
                 modsListView.Items.Add(item);
                 originalOrder.Add(item);
