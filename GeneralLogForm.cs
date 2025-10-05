@@ -113,7 +113,7 @@ namespace KenshiCore
                 Invoke(new Action<IEnumerable<(string, Color)>>(LogBlocks), blocks);
                 return;
             }
-            logTextBox.SuspendLayout();
+            logTextBox!.SuspendLayout();
             logTextBox.Visible = false;
 
             try

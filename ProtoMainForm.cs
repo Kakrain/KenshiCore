@@ -22,7 +22,7 @@ class ListViewColumnSorter : IComparer
         string textX = itemX.SubItems[Column].Text;
         string textY = itemY.SubItems[Column].Text;
 
-        int result;// = string.Compare(textX, textY, StringComparison.CurrentCultureIgnoreCase);
+        int result;
 
 
         if (int.TryParse(textX, out int numX) && int.TryParse(textY, out int numY))
@@ -253,7 +253,7 @@ namespace KenshiCore
                 }
             }
         }
-        private void TryInitialize()
+        protected void TryInitialize()
         {
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath)) //&&!string.IsNullOrEmpty(ModManager.workshopModsPath))
             {
