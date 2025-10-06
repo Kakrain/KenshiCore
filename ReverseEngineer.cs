@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection.PortableExecutable;
@@ -78,6 +79,19 @@ namespace KenshiCore
                 modData.Leftover = reader.ReadBytes((int)leftover);
                 Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
             }
+        }
+        public static int readJustVersion(string path)
+        {
+            using var fs = File.OpenRead(path);
+            using var reader = new BinaryReader(fs, Encoding.UTF8);
+            int filetype = reader.ReadInt32();
+            if(filetype==16)
+                return reader.ReadInt32();
+            if (filetype == 17) {
+                reader.ReadInt32();
+                return reader.ReadInt32();
+            }
+            throw new Exception($"Unexpected filetype: {filetype}");
         }
         public void SaveModFile(string path)
         {
@@ -235,9 +249,6 @@ namespace KenshiCore
                 WriteString(writer, kv.Value.Target);
             }
         }
-        // Helpers
-
-
         private ModHeader ParseHeader(BinaryReader reader)
         {
             var header = new ModHeader();

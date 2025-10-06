@@ -565,8 +565,45 @@ namespace KenshiCore
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
         }
+        private void RefreshColumn(int colIndex, Func<ModItem, object> selector)
+        {
+            modsListView.BeginUpdate();
+            try
+            {
+                foreach (ListViewItem item in modsListView.Items)
+                {
+                    if (item.Tag is ModItem mod)
+                    {
+                        var newValue = selector(mod)?.ToString() ?? "";
+                        item.SubItems[colIndex].Text = newValue;
+                    }
+                }
+            }
+            finally
+            {
+                modsListView.EndUpdate();
+            }
 
-        private void PopulateModsListView()
+            // Optional: force repaint of just that column
+            modsListView.Invalidate(GetColumnBounds(modsListView, colIndex));
+        }
+        protected void RefreshColumn(int colIndex)
+        {
+            if (colIndex < 0 || colIndex >= columnDefs.Count)
+                return;
+
+            var selector = columnDefs[colIndex].selector;
+            RefreshColumn(colIndex, selector);
+        }
+        private Rectangle GetColumnBounds(ListView list, int colIndex)
+        {
+            int x = 0;
+            for (int i = 0; i < colIndex; i++)
+                x += list.Columns[i].Width;
+
+            return new Rectangle(x, 0, list.Columns[colIndex].Width, list.Height);
+        }
+        protected virtual void PopulateModsListView()
         {
             modsListView.Items.Clear();
             originalOrder.Clear();

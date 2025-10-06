@@ -64,15 +64,31 @@ namespace KenshiCore
         {
            return Path.Combine(Path.GetDirectoryName(getModFilePath())!, Path.GetFileNameWithoutExtension(Name) + ".dict");
         }
-        public string? getModFilePath()
+        public string? getGamedirModPath()
         {
             if (InGameDir)
             {
                 return Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(Name), Name);
             }
+            return null;
+        }
+        public string? getWorkshopModPath()
+        {
             if (WorkshopId != -1)
             {
                 return Path.Combine(ModManager.workshopModsPath!, WorkshopId.ToString(), Name);
+            }
+            return null;
+        }
+        public string? getModFilePath()
+        {
+            if (InGameDir)
+            {
+                return getGamedirModPath();//Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(Name), Name);
+            }
+            if (WorkshopId != -1)
+            {
+                return getWorkshopModPath();//Path.Combine(ModManager.workshopModsPath!, WorkshopId.ToString(), Name);
             }
             Debug.WriteLine($"Error getting mod file path for {Name}");
             return null;
