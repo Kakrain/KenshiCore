@@ -106,7 +106,52 @@ namespace KenshiCore
             };
             this.Controls.Add(layout);
         }
-        public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks)
+        public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks, Action<int, string>? reportProgress = null)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action<IEnumerable<(string, Color)>, Action<int, string>?>(LogBlocks), blocks, reportProgress);
+                return;
+            }
+
+            logTextBox!.SuspendLayout();
+            logTextBox.Visible = false;
+
+            try
+            {
+                var blockList = blocks.ToList();
+                int total = blockList.Count;
+                int count = 0;
+
+                foreach (var (text, color) in blockList)
+                {
+                    logTextBox.SelectionStart = logTextBox.TextLength;
+                    logTextBox.SelectionLength = 0;
+                    logTextBox.SelectionColor = color;
+                    logTextBox.AppendText(text + Environment.NewLine);
+
+                    count++;
+                    // Report progress every 50 lines (adjust if needed)
+                    if (reportProgress != null && count % 50 == 0)
+                        reportProgress(count, $"Logging {count}/{total} lines...");
+                }
+
+                // Final progress update
+                reportProgress?.Invoke(total, $"Finished logging {total} lines.");
+            }
+            finally
+            {
+                logTextBox.Visible = true;
+                logTextBox.ResumeLayout();
+                logTextBox.Invalidate();
+            }
+
+            logTextBox.SelectionStart = 0;
+            logTextBox.ScrollToCaret();
+
+            UpdateStatus();
+        }
+        /*public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks)
         {
             if (InvokeRequired)
             {
@@ -137,8 +182,20 @@ namespace KenshiCore
             logTextBox.ScrollToCaret();
 
             UpdateStatus();
-        }
+        }*/
 
+        // Append a batch of lines to RichTextBox
+        private void AppendBatch(List<(string Text, Color Color)> batch)
+        {
+            foreach (var (text, color) in batch)
+            {
+                logTextBox.SelectionStart = logTextBox.TextLength;
+                logTextBox.SelectionLength = 0;
+                logTextBox.SelectionColor = color;
+                logTextBox.AppendText(text + Environment.NewLine);
+            }
+        }
+        
         public void Log(string text,Color? text_color=null)
         {
             if (InvokeRequired)

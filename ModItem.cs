@@ -12,6 +12,7 @@ namespace KenshiCore
         public bool Selected { get; set; }
         public long WorkshopId { get; set; }
         private static Dictionary<int, Image> iconCache = new();
+        public bool IsBaseGame { get; set; }
 
         public static Image? gameDirIcon = ResourceLoader.LoadImage("KenshiCore.icons.kenshiicon.png");
         public static Image? workshopIcon = ResourceLoader.LoadImage("KenshiCore.icons.steamicon.png");
@@ -26,6 +27,21 @@ namespace KenshiCore
         }
         public Image CreateCompositeIcon()
         {
+            if (IsBaseGame)
+            {
+                using (Bitmap tempBmp = new Bitmap(48, 16))
+                {
+                    using (Graphics g = Graphics.FromImage(tempBmp))
+                    {
+                        g.DrawImage(gameDirIcon, 0, 0);
+                        g.DrawImage(gameDirIcon, 16, 0);
+                        g.DrawImage(gameDirIcon, 32, 0);
+                    }
+                    Image finalImage = (Image)tempBmp.Clone();
+                    return finalImage;
+                }
+
+            }
             int key = (Convert.ToInt32(InGameDir) * 100) +
                       (Convert.ToInt32(WorkshopId != -1) * 10) +
                       Convert.ToInt32(Selected);
@@ -62,7 +78,7 @@ namespace KenshiCore
         }
         public string getDictFilePath()
         {
-           return Path.Combine(Path.GetDirectoryName(getModFilePath())!, Path.GetFileNameWithoutExtension(Name) + ".dict");
+            return Path.Combine(Path.GetDirectoryName(getModFilePath())!, Path.GetFileNameWithoutExtension(Name) + ".dict");
         }
         public string? getGamedirModPath()
         {
@@ -82,6 +98,11 @@ namespace KenshiCore
         }
         public string? getModFilePath()
         {
+            if (IsBaseGame)
+            {
+                string dataDir = Path.Combine(Path.GetDirectoryName(ModManager.gamedirModsPath!)!, "data");
+                return Path.Combine(dataDir, Name);
+            }
             if (InGameDir)
             {
                 return getGamedirModPath();//Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(Name), Name);

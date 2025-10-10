@@ -75,6 +75,26 @@ namespace KenshiCore
             gamedirModsPath = Path.Combine(kenshiPath, "mods");
             workshopModsPath = Path.Combine(steamInstallPath!, "steamapps", "workshop", "content", "233860");
         }
+        public List<string> LoadBaseGameData()
+        {
+            var list = new List<string>();
+            try
+            {
+                if (!string.IsNullOrEmpty(gamedirModsPath))
+                {
+                    string dataPath = Path.Combine(Path.GetDirectoryName(gamedirModsPath)!, "data");
+                    if (Directory.Exists(dataPath))
+                    {
+                        foreach (var file in Directory.GetFiles(dataPath, "*.mod"))
+                            list.Add(Path.GetFileName(file));
+                        foreach (var file in Directory.GetFiles(dataPath, "*.base"))
+                            list.Add(Path.GetFileName(file));
+                    }
+                }
+            }
+            catch { }
+            return list;
+        }
         public List<string> LoadGameDirMods()
         {
             var result = new List<string>(); 
