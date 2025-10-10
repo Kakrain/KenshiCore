@@ -252,9 +252,9 @@ namespace KenshiCore
                     foreach (var rec in modData.Records)
                     {
                         if(!rec.ValidateChangeTypeAssumptions(filetype))
-                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.getModType()}) ({rec.getChangeType()})---", Color.Red));
+                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.getRecordType()}) ({rec.getChangeType()})---", Color.Red));
                         if(!rec.ValidateDataTypeAssumptions())
-                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.RecordType}) ({rec.getModType()})---", Color.Red));
+                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.RecordType}) ({rec.getRecordType()})---", Color.Red));
                     }
                 }
             }
@@ -776,7 +776,7 @@ namespace KenshiCore
             { 107, "CROSSBOW" },{ 109, "AMBIENT_SOUND" },{ 110, "WORLD_EVENT_STATE" },{ 111, "LIMB_REPLACEMENT" },{112,"ANIMATION_FILE"}
         };
         public static readonly Dictionary<string, int> ModTypeNames=ModTypeCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
-        public string getModType()
+        public string getRecordType()
         {
             return ModTypeCodes.GetValueOrDefault(this.RecordType, $"UNKNOWN:{this.RecordType.ToString()}");
         }
@@ -784,7 +784,7 @@ namespace KenshiCore
         {
             var blocks = new List<(string, Color)>();
             // Record header
-            blocks.Add(($"--- RECORD: {this.Name} ({this.getModType()}) ---", Color.Orange));
+            blocks.Add(($"--- RECORD: {this.Name} ({this.getRecordType()}) ---", Color.Orange));
             blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
 
             // Basic fields
@@ -816,6 +816,10 @@ namespace KenshiCore
                 }
             }
             return blocks;
+        }
+        public bool isNew()
+        {
+            return (ChangeType & 1) == 0;
         }
         public string getChangeType()
         {
