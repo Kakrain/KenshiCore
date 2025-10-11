@@ -20,7 +20,7 @@ namespace KenshiCore
         {
             modData = new ModData();
         }
-        private string modname="";
+        public string modname="";
         private readonly Dictionary<int, List<ModRecord>> _recordsByType=new();
         public int ReadInt(BinaryReader reader) => reader.ReadInt32();
         public float ReadFloat(BinaryReader reader) => reader.ReadSingle();
@@ -33,10 +33,35 @@ namespace KenshiCore
             byte[] bytes = reader.ReadBytes(length);
             return Encoding.UTF8.GetString(bytes);
         }
+        public List<string> GetModsNewRecords()
+        {
+            if (modData?.Records == null)
+                return new List<string>();
+
+            return modData.Records
+                .Where(r => r.isNew())
+                .Select(r => r.GetModName())
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
         public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
         public void WriteFloat(BinaryWriter writer, float v) => writer.Write(v);
         public void WriteBool(BinaryWriter writer, bool v) => writer.Write(v);
-
+        public void addDependencies(List<string> deps)
+        {
+            foreach (string d in deps)
+            {
+                this.modData.Header!.AddDependency(d);
+            }
+        }
+        public void addReferences(List<string> refs)
+        {
+            foreach (string d in refs)
+            {
+                this.modData.Header!.AddReference(d);
+            }
+        }
         public void WriteString(BinaryWriter writer, string v)
         {
             byte[] bytes = Encoding.UTF8.GetBytes(v);
@@ -260,7 +285,8 @@ namespace KenshiCore
             }
             return blocks;
         }
-        public List<(string Text, Color Color)> GetAllDataAsBlocks()
+
+        public List<(string Text, Color Color)> GetAllDataAsBlocks(int verbose=1)
         {
             var blocks = new List<(string, Color)>();
 
@@ -280,13 +306,24 @@ namespace KenshiCore
                     blocks.Add(($"References: {modData.Header.References}", Color.LightCyan));
                 blocks.Add(($"RecordCount: {modData.Header.RecordCount}", Color.Gray));
             }
-
+            if (verbose == -1)
+                return blocks;
             // Records
             if (modData.Records != null)
             {
                 foreach (var rec in modData.Records)
                 {
-                    blocks.AddRange(rec.getDataAsBlock());
+                    switch(verbose)
+                    {
+                        case 0:
+                                blocks.AddRange(rec.getNameOnlyAsBlock());
+                            break;
+                        case 1:
+                                blocks.AddRange(rec.getDataAsBlock());
+                            break;
+                        default:
+                            break;
+                    }
                 }
             }
             return blocks;
@@ -563,8 +600,8 @@ namespace KenshiCore
             }
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            this.modData.Header!.AddDependency(target.GetModName());
-            this.modData.Header!.AddReference(source.GetModName());
+            //this.modData.Header!.AddDependency(target.GetModName());
+            ///this.modData.Header!.AddReference(source.GetModName());
 
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
             if(cat == null)
@@ -573,7 +610,8 @@ namespace KenshiCore
                 ownedtarget.ExtraDataFields.Add(category, cat);
             }
             //EnsurePlaceholderExists(source.TypeCode);
-            cat.Add(source.StringId, new int[] { 0, 0, 0 });
+            if(!cat.ContainsKey(source.StringId))
+                cat.Add(source.StringId, new int[] { 0, 0, 0 });//System.ArgumentException: "An item with the same key has already been added. Key: 1535515-Power up battle by skill.mod"//sometimes mods override records, maybe because of merging.
         }
         public ModRecord? searchModRecordByStringId(string stringId)
         {
@@ -780,6 +818,13 @@ namespace KenshiCore
         {
             return ModTypeCodes.GetValueOrDefault(this.RecordType, $"UNKNOWN:{this.RecordType.ToString()}");
         }
+        public List<(string, Color)> getNameOnlyAsBlock()
+        {
+            var blocks = new List<(string, Color)>();
+            blocks.Add(($"--- RECORD: {this.Name} ({this.getRecordType()}) ---", Color.Orange));
+            blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
+            return blocks;
+        }
         public List<(string, Color)> getDataAsBlock()
         {
             var blocks = new List<(string, Color)>();
@@ -976,6 +1021,32 @@ namespace KenshiCore
                 return firstOk && lastOk;
             }
             return false;
+        }
+
+        public bool HasField(string field)
+        {
+            return BoolFields.ContainsKey(field) || FloatFields.ContainsKey(field) ||
+                   LongFields.ContainsKey(field) || Vec3Fields.ContainsKey(field) ||
+                   Vec4Fields.ContainsKey(field) || StringFields.ContainsKey(field) ||
+                   FilenameFields.ContainsKey(field);
+        }
+        public string? GetField(string field)
+        {
+            if (BoolFields.ContainsKey(field))
+                return BoolFields.GetValueOrDefault(field).ToString();
+            if (FloatFields.ContainsKey(field))
+                return FloatFields.GetValueOrDefault(field).ToString();
+            if (LongFields.ContainsKey(field))
+                return LongFields.GetValueOrDefault(field).ToString();
+            if (Vec3Fields.ContainsKey(field))
+                return Vec3Fields.GetValueOrDefault(field).ToString();
+            if (Vec4Fields.ContainsKey(field))
+                return Vec4Fields.GetValueOrDefault(field).ToString();
+            if (StringFields.ContainsKey(field))
+                return StringFields.GetValueOrDefault(field).ToString();
+            if (FilenameFields.ContainsKey(field))
+                return FilenameFields.GetValueOrDefault(field).ToString();
+            return null;
         }
     }
     public class ModInstance
