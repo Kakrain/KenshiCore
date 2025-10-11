@@ -33,9 +33,9 @@ namespace KenshiCore
                 {
                     using (Graphics g = Graphics.FromImage(tempBmp))
                     {
-                        g.DrawImage(gameDirIcon, 0, 0);
-                        g.DrawImage(gameDirIcon, 16, 0);
-                        g.DrawImage(gameDirIcon, 32, 0);
+                        g.DrawImage(gameDirIcon!, 0, 0);
+                        g.DrawImage(gameDirIcon!, 16, 0);
+                        g.DrawImage(gameDirIcon!, 32, 0);
                     }
                     Image finalImage = (Image)tempBmp.Clone();
                     return finalImage;

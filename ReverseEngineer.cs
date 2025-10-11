@@ -1039,13 +1039,13 @@ namespace KenshiCore
             if (LongFields.ContainsKey(field))
                 return LongFields.GetValueOrDefault(field).ToString();
             if (Vec3Fields.ContainsKey(field))
-                return Vec3Fields.GetValueOrDefault(field).ToString();
+                return Vec3Fields.GetValueOrDefault(field)!.ToString();
             if (Vec4Fields.ContainsKey(field))
-                return Vec4Fields.GetValueOrDefault(field).ToString();
+                return Vec4Fields.GetValueOrDefault(field)!.ToString();
             if (StringFields.ContainsKey(field))
-                return StringFields.GetValueOrDefault(field).ToString();
+                return StringFields.GetValueOrDefault(field)!.ToString();
             if (FilenameFields.ContainsKey(field))
-                return FilenameFields.GetValueOrDefault(field).ToString();
+                return FilenameFields.GetValueOrDefault(field)!.ToString();
             return null;
         }
     }

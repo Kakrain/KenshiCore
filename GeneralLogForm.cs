@@ -151,45 +151,12 @@ namespace KenshiCore
 
             UpdateStatus();
         }
-        /*public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks)
-        {
-            if (InvokeRequired)
-            {
-                Invoke(new Action<IEnumerable<(string, Color)>>(LogBlocks), blocks);
-                return;
-            }
-            logTextBox!.SuspendLayout();
-            logTextBox.Visible = false;
-
-            try
-            {
-                foreach (var (text, color) in blocks)
-                {
-                    logTextBox.SelectionStart = logTextBox.TextLength;
-                    logTextBox.SelectionLength = 0;
-                    logTextBox.SelectionColor = color;
-                    logTextBox.AppendText(text + Environment.NewLine);
-                }
-            }
-            finally
-            {
-                logTextBox.Visible = true;
-                logTextBox.ResumeLayout();
-                logTextBox.Invalidate();
-            }
-            logTextBox.SelectionStart = 0;// logTextBox.TextLength;
-            //logTextBox.SelectionLength = 0;
-            logTextBox.ScrollToCaret();
-
-            UpdateStatus();
-        }*/
-
         // Append a batch of lines to RichTextBox
         private void AppendBatch(List<(string Text, Color Color)> batch)
         {
             foreach (var (text, color) in batch)
             {
-                logTextBox.SelectionStart = logTextBox.TextLength;
+                logTextBox!.SelectionStart = logTextBox.TextLength;
                 logTextBox.SelectionLength = 0;
                 logTextBox.SelectionColor = color;
                 logTextBox.AppendText(text + Environment.NewLine);
