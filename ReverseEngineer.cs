@@ -1,6 +1,9 @@
-﻿using System;
+﻿using Microsoft.VisualBasic.Devices;
+using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
@@ -286,7 +289,7 @@ namespace KenshiCore
             return blocks;
         }
 
-        public List<(string Text, Color Color)> GetAllDataAsBlocks(int verbose=1)
+        public List<(string Text, Color Color)> GetAllDataAsBlocks(int verbose=1, string? recordTypeFilter = null,List<string>? fieldFilter = null)
         {
             var blocks = new List<(string, Color)>();
 
@@ -313,13 +316,16 @@ namespace KenshiCore
             {
                 foreach (var rec in modData.Records)
                 {
-                    switch(verbose)
+                    if (recordTypeFilter != null &&
+                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
+                            continue;
+                    switch (verbose)
                     {
                         case 0:
                                 blocks.AddRange(rec.getNameOnlyAsBlock());
                             break;
                         case 1:
-                                blocks.AddRange(rec.getDataAsBlock());
+                                blocks.AddRange(rec.getDataAsBlock(fieldFilter));
                             break;
                         default:
                             break;
@@ -327,6 +333,140 @@ namespace KenshiCore
                 }
             }
             return blocks;
+        }
+        public List<(string Text, Color Color)> CompareWith(ReverseEngineer other,string? recordTypeFilter = null,List<string>? fieldFilter = null)
+        {
+            var blocks = new List<(string, Color)>();
+
+            if (this.modData?.Records == null || other.modData?.Records == null)
+                return blocks;
+
+            // Build quick lookup by record name (case-insensitive).
+            // You can swap to StringId if you prefer a different matching key.
+            var mineByName = this.modData.Records
+                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(r => r.Name ?? "", StringComparer.OrdinalIgnoreCase);
+
+            var otherByName = other.modData.Records
+                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(r => r.Name ?? "", StringComparer.OrdinalIgnoreCase);
+
+            // Intersection: only records present in both
+            var commonNames = mineByName.Keys.Intersect(otherByName.Keys, StringComparer.OrdinalIgnoreCase);
+            double maxdif = -999;
+            double mindif = 999;
+            double avdif = 0;
+            double num = 0;
+            foreach (var name in commonNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            {
+                var mine = mineByName[name];
+                var theirs = otherByName[name];
+
+                // Header for this record
+                blocks.Add(($"--- RECORD: {mine.Name} ({mine.getRecordType()}) ---", Color.Orange));
+                blocks.Add(($"This:   StringID: {mine.StringId}  ChangeType: {mine.getChangeType()}", Color.Gray));
+                blocks.Add(($"Other:  StringID: {theirs.StringId}  ChangeType: {theirs.getChangeType()}", Color.Gray));
+
+                // collect all field names present in either record
+                // Assume ModRecord exposes GetAllFieldNames() -> IEnumerable<string>
+                var mineFields = new HashSet<string>(mine.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+                var theirFields = new HashSet<string>(theirs.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+
+                var allFields = mineFields.Union(theirFields, StringComparer.OrdinalIgnoreCase);
+
+                // If a fieldFilter was provided, restrict to it
+                if (fieldFilter != null && fieldFilter.Count > 0)
+                {
+                    var filterSet = new HashSet<string>(fieldFilter, StringComparer.OrdinalIgnoreCase);
+                    allFields = allFields.Where(f => filterSet.Contains(f)).ToList();
+                }
+                
+                foreach (var field in allFields.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                {
+                    bool hasMine = mineFields.Contains(field);
+                    bool hasTheirs = theirFields.Contains(field);
+
+                    object? valMine = hasMine ? mine.GetFieldAsObject(field) : null;
+                    object? valTheirs = hasTheirs ? theirs.GetFieldAsObject(field) : null;
+
+                    string svalMine = FormatFieldValueForDisplay(valMine);
+                    string svalTheirs = FormatFieldValueForDisplay(valTheirs);
+
+                    if (hasMine && hasTheirs)
+                    {
+                        // both present: show old -> new (other -> this)
+                        string text = $"{field}: {svalTheirs}  →  {svalMine}";
+                        Color color = AreFieldValuesEqual(valMine, valTheirs) ? Color.Gray : Color.LightGreen;
+                        blocks.Add((text, color));
+                        if (IsNumericType(valMine!))
+                        {
+                            double a = Convert.ToDouble(valMine, CultureInfo.InvariantCulture);
+                            double b = Convert.ToDouble(valTheirs, CultureInfo.InvariantCulture);
+                            double dif = Math.Abs(a - b);
+                            if (dif > maxdif)
+                                maxdif = dif;
+                            if (dif < mindif)
+                                mindif = dif;
+                            avdif += dif;
+                            num++;
+                        }
+                    }
+                    else if (hasTheirs) // only in other (base)
+                    {
+                        string text = $"{field}: {svalTheirs}  (base only)";
+                        blocks.Add((text, Color.LightBlue));
+                    }
+                    else // only in this (patch)
+                    {
+                        string text = $"{field}: {svalMine}  (patch only)";
+                        blocks.Add((text, Color.LightYellow));
+                    }
+                }
+
+                // spacer line
+                blocks.Add(("", Color.Transparent));
+            }
+            if (num > 0)
+            {
+                avdif /= num;
+                blocks.Add(($"Numeric field differences summary: max={maxdif}, min={mindif}, avg={avdif:F6} over {num} fields", Color.Purple));
+            }
+
+            return blocks;
+        }
+        private static string FormatFieldValueForDisplay(object? v)
+        {
+            if (v == null) return "<missing>";
+            if (v is float f) return f.ToString(CultureInfo.InvariantCulture);
+            if (v is double d) return d.ToString(CultureInfo.InvariantCulture);
+            if (v is int i) return i.ToString(CultureInfo.InvariantCulture);
+            if (v is long l) return l.ToString(CultureInfo.InvariantCulture);
+            if (v is bool b) return b ? "true" : "false";
+            if (v is string s) return $"\"{s}\"";
+            if (v is IEnumerable<object> list) return $"[{string.Join(", ", list)}]";
+            if (v is float[] fa) return $"[{string.Join(", ", fa.Select(x => x.ToString(CultureInfo.InvariantCulture)))}]";
+            return v.ToString() ?? "<null>";
+        }
+        private static bool AreFieldValuesEqual(object? a, object? b)
+        {
+            if (a == null && b == null) return true;
+            if (a == null || b == null) return false;
+
+            // numeric tolerance for floats/doubles
+            if (IsNumericType(a) && IsNumericType(b))
+            {
+                double da = Convert.ToDouble(a, CultureInfo.InvariantCulture);
+                double db = Convert.ToDouble(b, CultureInfo.InvariantCulture);
+                return Math.Abs(da - db) <= 1e-6 * Math.Max(1.0, Math.Max(Math.Abs(da), Math.Abs(db)));
+            }
+
+            return string.Equals(a.ToString(), b.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+        private static bool IsNumericType(object o)
+        {
+            return o is byte || o is sbyte || o is short || o is ushort ||
+                   o is int || o is uint || o is long || o is ulong ||
+                   o is float || o is double || o is decimal;
         }
         private void WriteMergeEntries(BinaryWriter writer, Dictionary<string, MergeEntry> entries)
         {
@@ -584,10 +724,11 @@ namespace KenshiCore
                 }
             }
         }
-        public void AddExtraData(ModRecord target,ModRecord source, string category)
+        
+        public ModRecord EnsureRecordExists(ModRecord target)
         {
             ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
-            if(ownedtarget == null)
+            if (ownedtarget == null)
             {
                 ownedtarget = new ModRecord();
                 ownedtarget.Name = target.Name;
@@ -598,6 +739,29 @@ namespace KenshiCore
                 ownedtarget.SetChangeCounter(2);
                 this.modData.Records!.Add(ownedtarget);
             }
+            return ownedtarget;
+        }
+        public void SetField(ModRecord target, string fieldname,string value)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            ownedtarget.EnsureFieldExist(target, fieldname);
+            ownedtarget.SetField(fieldname, value);
+        }
+        public void AddExtraData(ModRecord target,ModRecord source, string category)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            /*ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
+            if(ownedtarget == null)
+            {
+                ownedtarget = new ModRecord();
+                ownedtarget.Name = target.Name;
+                ownedtarget.StringId = target.StringId;
+                ownedtarget.RecordType = target.RecordType;
+                ownedtarget.ChangeType = target.ChangeType;
+                ownedtarget.SetRecordStatus(this.modData.Header!.FileType, "existing");
+                ownedtarget.SetChangeCounter(2);
+                this.modData.Records!.Add(ownedtarget);
+            }*/
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             //this.modData.Header!.AddDependency(target.GetModName());
@@ -760,6 +924,48 @@ namespace KenshiCore
         public Dictionary<string, Dictionary<string, int[]>> ExtraDataFields { get; set; } = new();
         public List<ModInstance> InstanceFields { get; set; } = new();
 
+        public void EnsureFieldExist(ModRecord source, string field)
+        {
+            if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field))
+                this.BoolFields[field] = bVal;
+            else if (source.FloatFields.TryGetValue(field, out float fVal) && !this.FloatFields.ContainsKey(field))
+                this.FloatFields[field] = fVal;
+            else if (source.LongFields.TryGetValue(field, out int lVal) && !this.LongFields.ContainsKey(field))
+                this.LongFields[field] = lVal;
+            else if (source.StringFields.TryGetValue(field, out string? sVal) && !this.StringFields.ContainsKey(field))
+                this.StringFields[field] = sVal;
+            else if (source.FilenameFields.TryGetValue(field, out string? fnVal) && !this.FilenameFields.ContainsKey(field))
+                this.FilenameFields[field] = fnVal;
+            else if (source.Vec3Fields.TryGetValue(field, out var v3Val) && !this.Vec3Fields.ContainsKey(field))
+                this.Vec3Fields[field] = (float[])v3Val.Clone();
+            else if (source.Vec4Fields.TryGetValue(field, out var v4Val) && !this.Vec4Fields.ContainsKey(field))
+                this.Vec4Fields[field] = (float[])v4Val.Clone();
+        }
+        public IEnumerable<string> GetAllFieldNames()
+        {
+            var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (BoolFields != null)
+                foreach (var kv in BoolFields)
+                    fields.Add(kv.Key);
+
+            if (FloatFields != null)
+                foreach (var kv in FloatFields)
+                    fields.Add(kv.Key);
+
+            if (LongFields != null)
+                foreach (var kv in LongFields)
+                    fields.Add(kv.Key);
+
+            if (StringFields != null)
+                foreach (var kv in StringFields)
+                    fields.Add(kv.Key);
+
+            if (FilenameFields != null)
+                foreach (var kv in FilenameFields)
+                    fields.Add(kv.Key);
+            return fields;
+        }
 
         private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields,string name)
         {
@@ -825,20 +1031,48 @@ namespace KenshiCore
             blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
             return blocks;
         }
-        public List<(string, Color)> getDataAsBlock()
+        public List<(string, Color)> getDataAsBlock(List<string>? fieldFilter = null)
         {
             var blocks = new List<(string, Color)>();
             // Record header
             blocks.Add(($"--- RECORD: {this.Name} ({this.getRecordType()}) ---", Color.Orange));
             blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
 
+            bool filterActive = fieldFilter != null && fieldFilter.Count > 0;
+
+            bool ShouldInclude(string fieldName) =>
+            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+
             // Basic fields
-            foreach (var kv in this.BoolFields) blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
+            /*foreach (var kv in this.BoolFields) blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
             foreach (var kv in this.FloatFields) blocks.Add(($"Float: {kv.Key} = {kv.Value}", Color.LightCyan));
             foreach (var kv in this.LongFields) blocks.Add(($"Long: {kv.Key} = {kv.Value}", Color.LightCyan));
             foreach (var kv in this.StringFields) blocks.Add(($"String: {kv.Key} = {kv.Value}", Color.LightYellow));
             foreach (var kv in this.FilenameFields) blocks.Add(($"Filename: {kv.Key} = {kv.Value}", Color.LightPink));
+            */
 
+            foreach (var kv in this.BoolFields)
+                if (ShouldInclude(kv.Key))
+                    blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
+
+            foreach (var kv in this.FloatFields)
+                if (ShouldInclude(kv.Key))
+                    blocks.Add(($"Float: {kv.Key} = {kv.Value}", Color.LightCyan));
+
+            foreach (var kv in this.LongFields)
+                if (ShouldInclude(kv.Key))
+                    blocks.Add(($"Long: {kv.Key} = {kv.Value}", Color.LightCyan));
+
+            foreach (var kv in this.StringFields)
+                if (ShouldInclude(kv.Key))
+                    blocks.Add(($"String: {kv.Key} = {kv.Value}", Color.LightYellow));
+
+            foreach (var kv in this.FilenameFields)
+                if (ShouldInclude(kv.Key))
+                    blocks.Add(($"Filename: {kv.Key} = {kv.Value}", Color.LightPink));
+
+            if (fieldFilter != null)
+                return blocks;
             // ExtraData
             if (this.ExtraDataFields != null)
             {
@@ -1030,7 +1264,82 @@ namespace KenshiCore
                    Vec4Fields.ContainsKey(field) || StringFields.ContainsKey(field) ||
                    FilenameFields.ContainsKey(field);
         }
-        public string? GetField(string field)
+        private bool TrySetVector(Dictionary<string, float[]> dict, string key, string value, int length)
+        {
+            var parts = value.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != length) return false;
+
+            var result = new float[length];
+            for (int i = 0; i < length; i++)
+            {
+                if (!float.TryParse(parts[i], out result[i]))
+                    return false;
+            }
+            dict[key] = result;
+            return true;
+        }
+        private void TrySet<T>(Dictionary<string, T> dict, string key, string value, TryParseHandler<T> parser)
+        {
+            if (parser(value, out T result))
+            {
+                dict[key] = result;
+                return;
+            }
+            throw new FormatException($"invalid value for field: {key}={value} on record {this.Name} ({this.StringId})");
+        }
+        public object? GetFieldAsObject(string field)
+        {
+            if (this.FloatFields.TryGetValue(field, out float f)) return f;
+            if (this.LongFields.TryGetValue(field, out int l)) return l;
+            if (this.BoolFields.TryGetValue(field, out bool b)) return b ? 1f : 0f;
+            if (this.StringFields.TryGetValue(field, out string? s)) return s;
+            if (this.FilenameFields.TryGetValue(field, out string? fn)) return fn;
+            if (this.Vec3Fields.TryGetValue(field, out var v3)) return v3.Length > 0 ? v3[0] : 0f;
+            if (this.Vec4Fields.TryGetValue(field, out var v4)) return v4.Length > 0 ? v4[0] : 0f;
+
+            return null;
+        }
+        public void SetField(string field, string value)
+        {
+            if (BoolFields.ContainsKey(field))
+            {
+                TrySet(BoolFields, field, value, bool.TryParse);
+                return;
+            }
+            if (FloatFields.ContainsKey(field))
+            {
+                TrySet(FloatFields, field, value.Replace(".", ","), float.TryParse);
+                return;
+            }
+            if (LongFields.ContainsKey(field))
+            {
+                TrySet(LongFields, field, value, int.TryParse);
+                return;
+            }
+            if (Vec3Fields.ContainsKey(field))
+            {
+                TrySetVector(Vec3Fields, field, value, 3);
+                return;
+            }
+            if (Vec4Fields.ContainsKey(field))
+            {
+                TrySetVector(Vec4Fields, field, value, 4);
+                return;
+            }
+            if (StringFields.ContainsKey(field))
+            {
+                StringFields[field] = value;
+                return;
+            }
+            if (FilenameFields.ContainsKey(field))
+            {
+                FilenameFields[field] = value;
+                return;
+            }
+            throw new FormatException($"field not found: {field}={value} on record {this.Name} ({this.StringId})");
+        }
+        private delegate bool TryParseHandler<T>(string s, out T result);
+        public string? GetFieldAsString(string field)
         {
             if (BoolFields.ContainsKey(field))
                 return BoolFields.GetValueOrDefault(field).ToString();
