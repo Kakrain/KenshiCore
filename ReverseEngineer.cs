@@ -11,8 +11,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System.Windows.Forms;
 using System.Xml.Linq;
-using static System.Net.Mime.MediaTypeNames;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore
 {
@@ -51,6 +49,10 @@ namespace KenshiCore
         public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
         public void WriteFloat(BinaryWriter writer, float v) => writer.Write(v);
         public void WriteBool(BinaryWriter writer, bool v) => writer.Write(v);
+        public List<string> getDependencies()
+        {
+            return CoreUtils.SplitModList(this.modData.Header?.Dependencies);
+        }
         public void addDependencies(List<string> deps)
         {
             foreach (string d in deps)
@@ -750,30 +752,14 @@ namespace KenshiCore
         public void AddExtraData(ModRecord target,ModRecord source, string category)
         {
             ModRecord? ownedtarget = EnsureRecordExists(target);
-            /*ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
-            if(ownedtarget == null)
-            {
-                ownedtarget = new ModRecord();
-                ownedtarget.Name = target.Name;
-                ownedtarget.StringId = target.StringId;
-                ownedtarget.RecordType = target.RecordType;
-                ownedtarget.ChangeType = target.ChangeType;
-                ownedtarget.SetRecordStatus(this.modData.Header!.FileType, "existing");
-                ownedtarget.SetChangeCounter(2);
-                this.modData.Records!.Add(ownedtarget);
-            }*/
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            //this.modData.Header!.AddDependency(target.GetModName());
-            ///this.modData.Header!.AddReference(source.GetModName());
-
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
             if(cat == null)
             {
                 cat = new Dictionary<string, int[]>();
                 ownedtarget.ExtraDataFields.Add(category, cat);
             }
-            //EnsurePlaceholderExists(source.TypeCode);
             if(!cat.ContainsKey(source.StringId))
                 cat.Add(source.StringId, new int[] { 0, 0, 0 });//System.ArgumentException: "An item with the same key has already been added. Key: 1535515-Power up battle by skill.mod"//sometimes mods override records, maybe because of merging.
         }
@@ -878,28 +864,13 @@ namespace KenshiCore
         public byte[]? Details { get; set; }
         public byte[]? UnparsedDetails { get; set; }
         public int DetailsLength { get; set; }
-
         public void AddDependency(string modName)
         {
-            if (string.IsNullOrWhiteSpace(modName))
-                return;
-            var deps = (Dependencies ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(d => d.Trim()).ToList();
-            if (!deps.Any(d => d.Equals(modName, StringComparison.OrdinalIgnoreCase)))
-            {
-                deps.Add(modName);
-                Dependencies = string.Join(",", deps);
-            }
+            Dependencies = CoreUtils.AddModToList(Dependencies, modName);
         }
         public void AddReference(string modName)
         {
-            if (string.IsNullOrWhiteSpace(modName))
-                return;
-            var refs = (References ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(r => r.Trim()).ToList();
-            if (!refs.Any(r => r.Equals(modName, StringComparison.OrdinalIgnoreCase)))
-            {
-                refs.Add(modName);
-                References = string.Join(",", refs);
-            }
+            References = CoreUtils.AddModToList(References, modName);
         }
     }
     public class ModRecord
@@ -1044,13 +1015,6 @@ namespace KenshiCore
             !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
 
             // Basic fields
-            /*foreach (var kv in this.BoolFields) blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
-            foreach (var kv in this.FloatFields) blocks.Add(($"Float: {kv.Key} = {kv.Value}", Color.LightCyan));
-            foreach (var kv in this.LongFields) blocks.Add(($"Long: {kv.Key} = {kv.Value}", Color.LightCyan));
-            foreach (var kv in this.StringFields) blocks.Add(($"String: {kv.Key} = {kv.Value}", Color.LightYellow));
-            foreach (var kv in this.FilenameFields) blocks.Add(($"Filename: {kv.Key} = {kv.Value}", Color.LightPink));
-            */
-
             foreach (var kv in this.BoolFields)
                 if (ShouldInclude(kv.Key))
                     blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
