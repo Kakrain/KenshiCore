@@ -4,7 +4,9 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -43,7 +45,7 @@ namespace KenshiCore
                 .Where(r => r.isNew())
                 .Select(r => r.GetModName())
                 .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Distinct(StringComparer.Ordinal)
                 .ToList();
         }
         public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
@@ -319,7 +321,7 @@ namespace KenshiCore
                 foreach (var rec in modData.Records)
                 {
                     if (recordTypeFilter != null &&
-                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
+                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
                             continue;
                     switch (verbose)
                     {
@@ -346,20 +348,20 @@ namespace KenshiCore
             // Build quick lookup by record name (case-insensitive).
             // You can swap to StringId if you prefer a different matching key.
             var mineByName = this.modData.Records
-                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
-                .ToDictionary(r => r.Name ?? "", StringComparer.OrdinalIgnoreCase);
+                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+                .ToDictionary(r => r.Name ?? "", StringComparer.Ordinal);
 
             var otherByName = other.modData.Records
-                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.OrdinalIgnoreCase))
-                .ToDictionary(r => r.Name ?? "", StringComparer.OrdinalIgnoreCase);
+                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+                .ToDictionary(r => r.Name ?? "", StringComparer.Ordinal);
 
             // Intersection: only records present in both
-            var commonNames = mineByName.Keys.Intersect(otherByName.Keys, StringComparer.OrdinalIgnoreCase);
+            var commonNames = mineByName.Keys.Intersect(otherByName.Keys, StringComparer.Ordinal);
             double maxdif = -999;
             double mindif = 999;
             double avdif = 0;
             double num = 0;
-            foreach (var name in commonNames.OrderBy(n => n, StringComparer.OrdinalIgnoreCase))
+            foreach (var name in commonNames.OrderBy(n => n, StringComparer.Ordinal))
             {
                 var mine = mineByName[name];
                 var theirs = otherByName[name];
@@ -371,19 +373,19 @@ namespace KenshiCore
 
                 // collect all field names present in either record
                 // Assume ModRecord exposes GetAllFieldNames() -> IEnumerable<string>
-                var mineFields = new HashSet<string>(mine.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
-                var theirFields = new HashSet<string>(theirs.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+                var mineFields = new HashSet<string>(mine.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+                var theirFields = new HashSet<string>(theirs.GetAllFieldNames() ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
 
-                var allFields = mineFields.Union(theirFields, StringComparer.OrdinalIgnoreCase);
+                var allFields = mineFields.Union(theirFields, StringComparer.Ordinal);
 
                 // If a fieldFilter was provided, restrict to it
                 if (fieldFilter != null && fieldFilter.Count > 0)
                 {
-                    var filterSet = new HashSet<string>(fieldFilter, StringComparer.OrdinalIgnoreCase);
+                    var filterSet = new HashSet<string>(fieldFilter, StringComparer.Ordinal);
                     allFields = allFields.Where(f => filterSet.Contains(f)).ToList();
                 }
                 
-                foreach (var field in allFields.OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                foreach (var field in allFields.OrderBy(f => f, StringComparer.Ordinal))
                 {
                     bool hasMine = mineFields.Contains(field);
                     bool hasTheirs = theirFields.Contains(field);
@@ -462,7 +464,7 @@ namespace KenshiCore
                 return Math.Abs(da - db) <= 1e-6 * Math.Max(1.0, Math.Max(Math.Abs(da), Math.Abs(db)));
             }
 
-            return string.Equals(a.ToString(), b.ToString(), StringComparison.OrdinalIgnoreCase);
+            return string.Equals(a.ToString(), b.ToString(), StringComparison.Ordinal);
         }
         private static bool IsNumericType(object o)
         {
@@ -755,13 +757,18 @@ namespace KenshiCore
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            if(cat == null)
+
+            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
+            if((target_cat!=null)&&(target_cat.ContainsKey(source.StringId)))
+                return;//already exists
+
+            if (cat == null)
             {
                 cat = new Dictionary<string, int[]>();
                 ownedtarget.ExtraDataFields.Add(category, cat);
             }
             if(!cat.ContainsKey(source.StringId))
-                cat.Add(source.StringId, new int[] { 0, 0, 0 });//System.ArgumentException: "An item with the same key has already been added. Key: 1535515-Power up battle by skill.mod"//sometimes mods override records, maybe because of merging.
+                cat.Add(source.StringId, new int[] { 0, 0, 0 });
         }
         public ModRecord? searchModRecordByStringId(string stringId)
         {
@@ -895,6 +902,11 @@ namespace KenshiCore
         public Dictionary<string, Dictionary<string, int[]>> ExtraDataFields { get; set; } = new();
         public List<ModInstance> InstanceFields { get; set; } = new();
 
+        public static readonly Dictionary<string, Func<ModRecord,string>> additionalFields = new Dictionary<string, Func<ModRecord, string>>
+        {
+            { "_stringId_", r => r.StringId }
+        };
+
         public void EnsureFieldExist(ModRecord source, string field)
         {
             if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field))
@@ -914,7 +926,7 @@ namespace KenshiCore
         }
         public IEnumerable<string> GetAllFieldNames()
         {
-            var fields = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var fields = new HashSet<string>(StringComparer.Ordinal);
 
             if (BoolFields != null)
                 foreach (var kv in BoolFields)
@@ -937,7 +949,106 @@ namespace KenshiCore
                     fields.Add(kv.Key);
             return fields;
         }
+        public ModRecord deepClone()
+        {
+            var copy = new ModRecord
+            {
+                StringId = this.StringId,
+                InstanceCount = this.InstanceCount,
+                RecordType = this.RecordType,
+                Id = this.Id,
+                Name = this.Name,
+                ChangeType = this.ChangeType
+            };
+            copy.BoolFields = this.BoolFields != null
+                ? new Dictionary<string, bool>(this.BoolFields)
+                : new Dictionary<string, bool>();
+            copy.FloatFields = this.FloatFields != null
+                ? new Dictionary<string, float>(this.FloatFields)
+                : new Dictionary<string, float>();
+            copy.LongFields = this.LongFields != null
+                ? new Dictionary<string, int>(this.LongFields)
+                : new Dictionary<string, int>();
+            copy.StringFields = this.StringFields != null
+                ? this.StringFields.ToDictionary(kv => kv.Key, kv => kv.Value)
+                : new Dictionary<string, string>();
+            copy.FilenameFields = this.FilenameFields != null
+                ? this.FilenameFields.ToDictionary(kv => kv.Key, kv => kv.Value)
+                : new Dictionary<string, string>();
+            copy.Vec3Fields = this.Vec3Fields != null
+                ? this.Vec3Fields.ToDictionary(kv => kv.Key, kv => (float[])kv.Value.Clone())
+                : new Dictionary<string, float[]>();
+            copy.Vec4Fields = this.Vec4Fields != null
+                ? this.Vec4Fields.ToDictionary(kv => kv.Key, kv => (float[])kv.Value.Clone())
+                : new Dictionary<string, float[]>();
 
+            copy.ExtraDataFields = this.ExtraDataFields != null
+                ? this.ExtraDataFields.ToDictionary(
+                    kv => kv.Key,
+                    kv => kv.Value != null
+                        ? kv.Value.ToDictionary(kv2 => kv2.Key, kv2 => (int[])kv2.Value.Clone())
+                        : new Dictionary<string, int[]>()
+                  )
+                : new Dictionary<string, Dictionary<string, int[]>>();
+
+            copy.InstanceFields = this.InstanceFields != null
+                ? this.InstanceFields.Select(inst => new ModInstance
+                {
+                    Id = inst.Id,
+                    Target = inst.Target,
+                    Tx = inst.Tx,
+                    Ty = inst.Ty,
+                    Tz = inst.Tz,
+                    Rw = inst.Rw,
+                    Rx = inst.Rx,
+                    Ry = inst.Ry,
+                    Rz = inst.Rz,
+                    StateCount = inst.StateCount,
+                    States = inst.States != null ? new List<string>(inst.States) : new List<string>()
+                }).ToList()
+                : new List<ModInstance>();
+            return copy;
+        }
+
+        public bool isTheSameRecord(ModRecord other)
+        {
+            return this.StringId == other.StringId;
+        }
+        public int GetRecordCompleteness()
+        {
+            if (this == null) return 0;
+            int count = 0;
+            // Count number of populated fields across the collections you care about
+            if (this.BoolFields != null) count += this.BoolFields.Count;
+            if (this.FloatFields != null) count += this.FloatFields.Count;
+            if (this.LongFields != null) count += this.LongFields.Count;
+            if (this.Vec3Fields != null) count += this.Vec3Fields.Count;
+            if (this.Vec4Fields != null) count += this.Vec4Fields.Count;
+            if (this.StringFields != null) count += this.StringFields.Count;
+            if (this.FilenameFields != null) count += this.FilenameFields.Count;
+            if (this.ExtraDataFields != null) count += this.ExtraDataFields.Sum(kv => kv.Value?.Count() ?? 0);
+            if (this.InstanceFields != null) count += this.InstanceFields.Count;
+            return count;
+        }
+        public void applyChangesFrom(ModRecord other)
+        {
+            foreach (var kv in other.BoolFields)
+                this.BoolFields[kv.Key] = kv.Value;
+            foreach (var kv in other.FloatFields)
+                this.FloatFields[kv.Key] = kv.Value;
+            foreach (var kv in other.LongFields)
+                this.LongFields[kv.Key] = kv.Value;
+            foreach (var kv in other.Vec3Fields)
+                this.Vec3Fields[kv.Key] = (float[])kv.Value.Clone();
+            foreach (var kv in other.Vec4Fields)
+                this.Vec4Fields[kv.Key] = (float[])kv.Value.Clone();
+            foreach (var kv in other.StringFields)
+                this.StringFields[kv.Key] = kv.Value;
+            foreach (var kv in other.FilenameFields)
+                this.FilenameFields[kv.Key] = kv.Value;
+            foreach (var kv in other.ExtraDataFields)
+                this.ExtraDataFields[kv.Key] = new Dictionary<string, int[]>(kv.Value);
+        }
         private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields,string name)
         {
             if (fields == null)
@@ -947,7 +1058,25 @@ namespace KenshiCore
                 changed!.Add(name + sep + f.Key);
             }
         }
-        
+        public bool isExtraDataOfThis(ModRecord other, string? category = null)
+        {
+            if (category == null)
+            {
+                foreach (Dictionary<string, int[]> d in ExtraDataFields.Values)
+                {
+                    if (d.ContainsKey(other.StringId))
+                        return true;
+                }
+                return false;
+            }
+            this.ExtraDataFields.TryGetValue(category, out var cat);
+            if (cat != null)
+            {
+                if (cat.ContainsKey(other.StringId))
+                    return true;
+            }
+            return false;
+        }
 
         public HashSet<string> getChangedFields()
         {
@@ -1012,7 +1141,7 @@ namespace KenshiCore
             bool filterActive = fieldFilter != null && fieldFilter.Count > 0;
 
             bool ShouldInclude(string fieldName) =>
-            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.Ordinal));
 
             // Basic fields
             foreach (var kv in this.BoolFields)
@@ -1177,7 +1306,7 @@ namespace KenshiCore
             string modPart = StringId.Substring(dashIndex + 1);
 
             // Ensure it ends with ".mod"
-            if (modPart.EndsWith(".mod", StringComparison.OrdinalIgnoreCase))
+            if (modPart.EndsWith(".mod", StringComparison.Ordinal))
                 return modPart;
 
             return string.Empty;
@@ -1253,6 +1382,14 @@ namespace KenshiCore
         }
         public object? GetFieldAsObject(string field)
         {
+            /*additionalFields.TryGetValue(field, out var ff);
+            if (ff != null)
+                CoreUtils.Print($"field:{field},var:{ff(this)}");
+            else
+                CoreUtils.Print($"field:{field} not found");*/
+            additionalFields.TryGetValue(field, out var fieldfunc);
+            if (fieldfunc != null)
+                return fieldfunc(this);
             if (this.FloatFields.TryGetValue(field, out float f)) return f;
             if (this.LongFields.TryGetValue(field, out int l)) return l;
             if (this.BoolFields.TryGetValue(field, out bool b)) return b ? 1f : 0f;
@@ -1303,8 +1440,20 @@ namespace KenshiCore
             throw new FormatException($"field not found: {field}={value} on record {this.Name} ({this.StringId})");
         }
         private delegate bool TryParseHandler<T>(string s, out T result);
+        public string getStringId() {
+            return this.StringId;
+        }
+
         public string? GetFieldAsString(string field)
         {
+            /*additionalFields.TryGetValue(field, out var ff);
+            if (ff != null)
+                CoreUtils.Print($"field:{field},var:{ff(this)}");
+            else
+                CoreUtils.Print($"field:{field} not found");*/
+            additionalFields.TryGetValue(field, out var fieldfunc);
+            if (fieldfunc != null)
+                return fieldfunc(this);
             if (BoolFields.ContainsKey(field))
                 return BoolFields.GetValueOrDefault(field).ToString();
             if (FloatFields.ContainsKey(field))

@@ -31,7 +31,7 @@ class ListViewColumnSorter : IComparer
         }
         else
         {
-            result = string.Compare(textX, textY, StringComparison.CurrentCultureIgnoreCase);
+            result = string.Compare(textX, textY, StringComparison.CurrentCulture);
         }
 
 
@@ -643,7 +643,7 @@ namespace KenshiCore
             {
                 foreach (ListViewItem item in modsListView.Items.Cast<ListViewItem>().ToList())
                 {
-                    if (item.Tag is ModItem mod && !selectedMods.Contains(mod.Name, StringComparer.OrdinalIgnoreCase))
+                    if (item.Tag is ModItem mod && !selectedMods.Contains(mod.Name, StringComparer.Ordinal))
                     {
                         modsListView.Items.Remove(item);
                         originalOrder.Remove(item);
