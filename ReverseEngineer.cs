@@ -728,7 +728,26 @@ namespace KenshiCore
                 }
             }
         }
-        
+        public void testAll(string start = "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/")
+        {
+            start = "C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860";
+            foreach (string folder in Directory.GetDirectories(start))
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.mod"))
+                {
+                    this.LoadModFile(file);
+                    List<ModRecord> recs=this.GetRecordsByTypeINMUTABLE("CHARACTER");
+                    foreach (ModRecord rec in recs)
+                    {
+                        if (rec.isNew() && rec.ExtraDataFields!= null && !rec.ExtraDataFields!.ContainsKey("race"))
+                            CoreUtils.Print("listo, no se encontro en " + this.modname);
+                        
+
+                    }
+                }
+            }
+        }
+
         public ModRecord EnsureRecordExists(ModRecord target)
         {
             ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
@@ -1077,6 +1096,25 @@ namespace KenshiCore
             }
             return false;
         }
+        public bool hasThisAsExtraData(ModRecord other, string? category = null)
+        {
+            if (category == null)
+            {
+                foreach (Dictionary<string, int[]> d in other.ExtraDataFields.Values)
+                {
+                    if (d.ContainsKey(this.StringId))
+                        return true;
+                }
+                return false;
+            }
+            other.ExtraDataFields.TryGetValue(category, out var cat);
+            if (cat != null)
+            {
+                if (cat.ContainsKey(this.StringId))
+                    return true;
+            }
+            return false;
+        }
 
         public HashSet<string> getChangedFields()
         {
@@ -1382,17 +1420,12 @@ namespace KenshiCore
         }
         public object? GetFieldAsObject(string field)
         {
-            /*additionalFields.TryGetValue(field, out var ff);
-            if (ff != null)
-                CoreUtils.Print($"field:{field},var:{ff(this)}");
-            else
-                CoreUtils.Print($"field:{field} not found");*/
             additionalFields.TryGetValue(field, out var fieldfunc);
             if (fieldfunc != null)
                 return fieldfunc(this);
             if (this.FloatFields.TryGetValue(field, out float f)) return f;
             if (this.LongFields.TryGetValue(field, out int l)) return l;
-            if (this.BoolFields.TryGetValue(field, out bool b)) return b ? 1f : 0f;
+            if (this.BoolFields.TryGetValue(field, out bool b)) return b;
             if (this.StringFields.TryGetValue(field, out string? s)) return s;
             if (this.FilenameFields.TryGetValue(field, out string? fn)) return fn;
             if (this.Vec3Fields.TryGetValue(field, out var v3)) return v3.Length > 0 ? v3[0] : 0f;
