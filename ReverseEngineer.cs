@@ -13,6 +13,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System.Windows.Forms;
 using System.Xml.Linq;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore
 {
@@ -770,6 +771,13 @@ namespace KenshiCore
             ownedtarget.EnsureFieldExist(target, fieldname);
             ownedtarget.SetField(fieldname, value);
         }
+        public void ForceSetField(ModRecord target, string fieldname, string value,string valuetype)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            if(!ownedtarget.EnsureFieldExist(target, fieldname))
+                ownedtarget.ForceEnsureFieldExist(fieldname, valuetype);
+            ownedtarget.SetField(fieldname, value);
+        }
         public void AddExtraData(ModRecord target,ModRecord source, string category)
         {
             ModRecord? ownedtarget = EnsureRecordExists(target);
@@ -926,22 +934,66 @@ namespace KenshiCore
             { "_stringId_", r => r.StringId }
         };
 
-        public void EnsureFieldExist(ModRecord source, string field)
+        public bool EnsureFieldExist(ModRecord source, string field)
         {
-            if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field))
+            if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field)) { 
                 this.BoolFields[field] = bVal;
-            else if (source.FloatFields.TryGetValue(field, out float fVal) && !this.FloatFields.ContainsKey(field))
+                return true;
+            }
+            else if (source.FloatFields.TryGetValue(field, out float fVal) && !this.FloatFields.ContainsKey(field)) {
                 this.FloatFields[field] = fVal;
-            else if (source.LongFields.TryGetValue(field, out int lVal) && !this.LongFields.ContainsKey(field))
+                return true;
+            }
+            else if (source.LongFields.TryGetValue(field, out int lVal) && !this.LongFields.ContainsKey(field)){
                 this.LongFields[field] = lVal;
-            else if (source.StringFields.TryGetValue(field, out string? sVal) && !this.StringFields.ContainsKey(field))
+                return true;
+            }
+            else if (source.StringFields.TryGetValue(field, out string? sVal) && !this.StringFields.ContainsKey(field)){
                 this.StringFields[field] = sVal;
-            else if (source.FilenameFields.TryGetValue(field, out string? fnVal) && !this.FilenameFields.ContainsKey(field))
+                return true;
+            }
+            else if (source.FilenameFields.TryGetValue(field, out string? fnVal) && !this.FilenameFields.ContainsKey(field)){
                 this.FilenameFields[field] = fnVal;
-            else if (source.Vec3Fields.TryGetValue(field, out var v3Val) && !this.Vec3Fields.ContainsKey(field))
+                return true;
+            }
+            else if (source.Vec3Fields.TryGetValue(field, out var v3Val) && !this.Vec3Fields.ContainsKey(field)){
                 this.Vec3Fields[field] = (float[])v3Val.Clone();
-            else if (source.Vec4Fields.TryGetValue(field, out var v4Val) && !this.Vec4Fields.ContainsKey(field))
+                return true;
+            }
+            else if (source.Vec4Fields.TryGetValue(field, out var v4Val) && !this.Vec4Fields.ContainsKey(field)){
                 this.Vec4Fields[field] = (float[])v4Val.Clone();
+                return true;
+            }
+            return false;
+        }
+        public void ForceEnsureFieldExist(string field,string type)
+        {
+            switch (type)
+            {
+                case "bool":
+                    this.BoolFields[field] = true;
+                    break;
+                case "float":
+                    this.FloatFields[field] = 0.0f;
+                    break;
+                case "int":
+                    this.LongFields[field] = 0;
+                    break;
+                case "string":
+                    this.StringFields[field] = "";
+                    break;
+                case "filename":
+                    this.FilenameFields[field] = "";
+                    break;
+                case "vec3field":
+                    this.Vec3Fields[field] =new float[]{0.0f,0.0f,0.0f}; 
+                    break;
+                case "vec4field":
+                    this.Vec4Fields[field] = new float[] { 0.0f, 0.0f, 0.0f, 0.0f };
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown record type: {type} available types are: bool,float,int,string,filename,vec3field and vec4field");
+            }
         }
         public IEnumerable<string> GetAllFieldNames()
         {
