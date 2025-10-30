@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing.Interop;
 using System.Reflection;
+using System.Reflection.Metadata.Ecma335;
 using System.Windows.Forms;
 using MethodInvoker = System.Windows.Forms.MethodInvoker;
 
@@ -53,25 +54,24 @@ namespace KenshiCore
         private List<string> selectedMods = new List<string>();
         private List<string> workshopMods = new List<string>();
 
+        private Dictionary<Action<ModItem>, bool> showActionCache = new Dictionary<Action<ModItem>, bool>();
+        private Dictionary<Button, Func<ModItem, bool>> ButtonCache = new Dictionary<Button,Func<ModItem, bool>>();
+
+
         protected Boolean shouldLoadBaseGameData = false;
 
         
         private Dictionary<string, ListViewItem> modItemsLookup = new();
         private List<ListViewItem> originalOrder = new();
-        //protected TextBox? generalLog;
         private ProgressBar progressBar;
         private Label progressLabel;
         private ModManager modM;
-        private Button openGameDirButton;
-        private Button openSteamLinkButton;
-        private Button copyToGameDirButton;
         private Color secondary_color = Color.White;
         private TextBox kenshiDirTextBox;
         private TextBox steamDirTextBox;
         protected Task? InitializationTask { get; private set; }
         private List<(ColumnHeader header, Func<ModItem, object> selector)> columnDefs= new();
         private GeneralLogForm? logForm;
-        private Button ShowLogButton;
         protected TableLayoutPanel mainlayout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -150,30 +150,41 @@ namespace KenshiCore
             {
                 Dock = DockStyle.Fill,
                 View = View.Details,
-                FullRowSelect = true
+                FullRowSelect = true,
+                MultiSelect = false
             };
 
             listHost.Controls.Add(modsListView);
             mainlayout.Controls.Add(listHost, 0, 2);
-            modsListView.SelectedIndexChanged += SelectedIndexChanged;
+            //modsListView.SelectedIndexChanged += SelectedIndexChanged;
             modsListView.ColumnClick += ModsListView_ColumnClick!;
             modsListView.ListViewItemSorter = new ListViewColumnSorter();
 
             mainlayout.Controls.Add(buttonPanel, 1, 2);
-            
 
-            openGameDirButton = AddButton("Open Mod Directory", OpenGameDirButton_Click);
-            openSteamLinkButton = AddButton("Open Steam Link", OpenSteamLinkButton_Click);
-            copyToGameDirButton = AddButton("Copy to GameDir", CopyToGameDirButton_Click);
-
-
-            ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
+            AddButton("Open Mod Directory", OpenGameDirButton_Click,mod=>mod.InGameDir||mod.WorkshopId!=-1);
+            AddButton("Open Steam Link", OpenSteamLinkButton_Click,mod=>mod.WorkshopId!=-1);
+            AddButton("Copy to GameDir", CopyToGameDirButton_Click,mod=>!mod.InGameDir&&mod.WorkshopId!=-1);
+            AddButton("Show Log", ShowLogButton_Click);
 
             AddColumn("Mod Name", mod => mod.Name,300);
+
+
+
+            modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
+
+
+
             logForm = new GeneralLogForm();
 
 
             modM =new ModManager(new ReverseEngineer());
+
+            foreach (var kvp in ButtonCache)
+            {
+                kvp.Key.Enabled = false;
+            }
+
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath) && Directory.Exists(ModManager.gamedirModsPath))
                 kenshiDirTextBox.Text = Path.GetDirectoryName(ModManager.gamedirModsPath);
             if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
@@ -193,7 +204,7 @@ namespace KenshiCore
             {
                 progressLabel.Text = "Please set Kenshi directory.";
             }
-           // InitializationTask = InitializeAsync();
+
         }
         public GeneralLogForm getLogForm()
         {
@@ -203,14 +214,32 @@ namespace KenshiCore
             }
             return logForm;
         }
-
+        protected virtual void ModsListView_SelectedIndexChanged(object? sender, EventArgs? e)
+        {
+            BeginInvoke((MethodInvoker)delegate
+            {
+                ModItem? selectedmod = getSelectedMod();
+                if (selectedmod == null)
+                    return;
+                getLogForm().Reset();
+                modsListView.BeginUpdate();
+                foreach (var kvp in ButtonCache)
+                {
+                    kvp.Key.Enabled = kvp.Value(selectedmod);
+                }
+                foreach (var kvp in showActionCache)
+                {
+                    if (kvp.Value)
+                        kvp.Key(selectedmod);
+                }
+                
+                modsListView.EndUpdate();
+                modsListView.Refresh();
+            });
+        }
         private void ShowLogButton_Click(object? sender, EventArgs e)
         {
             logForm = getLogForm();
-            /*if (logForm == null || logForm.IsDisposed)
-            {
-                logForm = new GeneralLogForm();
-            }*/
 
             if (logForm.Visible)
             {
@@ -348,9 +377,9 @@ namespace KenshiCore
         
         protected virtual void SetupColumns() { }
 
-        protected Button AddButton(string text, EventHandler onClick)
+        protected Button AddButton(string text, EventHandler onClick,Func<ModItem,bool>? enabledFunc = null)
         {
-
+            enabledFunc ??= m => true;
             var button = new Button
             {
                 Text = text,
@@ -361,6 +390,10 @@ namespace KenshiCore
             button.BackColor = secondary_color;
             button.FlatAppearance.BorderSize = 0;
             buttonPanel.Controls.Add(button);
+
+
+            ButtonCache.Add(button, enabledFunc);
+
             return button;
         }
 
@@ -451,34 +484,20 @@ namespace KenshiCore
                 TextFormatFlags.Left
             );
         }
-        private void SelectedIndexChanged(object? sender, EventArgs? e)
+        protected ModItem? getSelectedMod()
         {
-            if (modsListView.SelectedItems.Count != 1)
+            if (modsListView.SelectedItems.Count == 0)
             {
-                openGameDirButton.Enabled = false;
-                openSteamLinkButton.Enabled = false;
-                copyToGameDirButton.Enabled = false;
-                return;
+                CoreUtils.Print("⚠ No item is currently selected.");
+                return null;
             }
-
-            string modName = modsListView.SelectedItems[0].Text;
-            if (mergedMods.TryGetValue(modName, out var mod))
-            {
-                openGameDirButton.Enabled = mod.InGameDir || mod.WorkshopId != -1;
-                copyToGameDirButton.Enabled = !mod.InGameDir && mod.WorkshopId != -1;
-                openSteamLinkButton.Enabled = mod.WorkshopId != -1;
-            }
-        }
-        protected ModItem getSelectedMod()
-        {
             string modName = modsListView.SelectedItems[0].Text;
             return (ModItem)modsListView.SelectedItems[0].Tag!;
-
         }
 
         private void OpenGameDirButton_Click(object? sender, EventArgs e)
         {
-            string? modpath = Path.GetDirectoryName(getSelectedMod().getModFilePath());
+            string? modpath = Path.GetDirectoryName(getSelectedMod()!.getModFilePath());
             if (modpath != null && Directory.Exists(modpath))
                 Process.Start("explorer.exe", modpath);
             else
@@ -656,6 +675,29 @@ namespace KenshiCore
                 modsListView.Refresh();
             }
 
+        }
+
+        protected void AddToggle(string label, Action<ModItem> onToggled, bool initialState = false)
+        {
+            var checkbox = new CheckBox
+            {
+                Text = label,
+                Checked = initialState,
+                AutoSize = true,
+                BackColor = secondary_color,
+                Padding = new Padding(2),
+                Margin = new Padding(3)
+            };
+
+            showActionCache[onToggled] = initialState;
+
+            checkbox.CheckedChanged += (s, e) =>
+            {
+                showActionCache[onToggled] = ((CheckBox)s!).Checked;
+                ModsListView_SelectedIndexChanged(null, null);
+            };
+
+            buttonPanel.Controls.Add(checkbox);
         }
         protected virtual void PopulateModsListView()
         {

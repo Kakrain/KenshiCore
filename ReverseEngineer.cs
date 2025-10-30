@@ -1,19 +1,9 @@
-﻿using Microsoft.VisualBasic.Devices;
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection.Metadata.Ecma335;
-using System.Reflection.PortableExecutable;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Threading.Channels;
-using System.Windows.Forms;
-using System.Xml.Linq;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore
 {
@@ -293,8 +283,7 @@ namespace KenshiCore
             }
             return blocks;
         }
-
-        public List<(string Text, Color Color)> GetAllDataAsBlocks(int verbose=1, string? recordTypeFilter = null,List<string>? fieldFilter = null)
+        public List<(string Text, Color Color)> GetHeaderAsBlocks( string? recordTypeFilter = null, List<string>? fieldFilter = null)
         {
             var blocks = new List<(string, Color)>();
 
@@ -314,8 +303,11 @@ namespace KenshiCore
                     blocks.Add(($"References: {modData.Header.References}", Color.LightCyan));
                 blocks.Add(($"RecordCount: {modData.Header.RecordCount}", Color.Gray));
             }
-            if (verbose == -1)
-                return blocks;
+            return blocks;
+        }
+        public List<(string Text, Color Color)> GetRecordsAsBlocks( string? recordTypeFilter = null, List<string>? fieldFilter = null)
+        {
+            var blocks = new List<(string, Color)>();
             // Records
             if (modData.Records != null)
             {
@@ -323,18 +315,8 @@ namespace KenshiCore
                 {
                     if (recordTypeFilter != null &&
                     !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
-                            continue;
-                    switch (verbose)
-                    {
-                        case 0:
-                                blocks.AddRange(rec.getNameOnlyAsBlock());
-                            break;
-                        case 1:
-                                blocks.AddRange(rec.getDataAsBlock(fieldFilter));
-                            break;
-                        default:
-                            break;
-                    }
+                        continue;
+                    blocks.AddRange(rec.getDataAsBlock(fieldFilter));
                 }
             }
             return blocks;
@@ -1301,7 +1283,6 @@ namespace KenshiCore
             bool isExistingRecord = newRecordFlagBits[3] == '1'; // last bit = 1 if existing
 
             // Format result
-            //string result = $"{first3Groups} | Change Counter: {changeCounter} | {newRecordFlagBits} ({(isExistingRecord ? "Existing" : "New")})";
             string result = $"Change Counter: {changeCounter} | {newRecordFlagBits} ({(isExistingRecord ? "Existing" : "New")})";
 
             if (newRecordFlagBits == "0011")
@@ -1412,9 +1393,6 @@ namespace KenshiCore
 
             if (fileType == 16)
             {
-                // Version 16 assumptions:
-                // first group (bits 0-3) = 1000
-                // last group (bits 28-31) = 0001 or 0010 or 0011
                 string firstGroup = binary.Substring(0, 4);
                 string lastGroup = binary.Substring(28, 4);
 
@@ -1425,10 +1403,6 @@ namespace KenshiCore
             }
             else if (fileType == 17)
             {
-                // Version 17 assumptions:
-                // first 4 groups (bits 0-15) = 0
-                // groups 5,6,7 (bits 16-27) = change counter (any number)
-                // last group (bits 28-31) = 0000, 0001, or 0011
                 string first3Groups = binary.Substring(0, 12);
                 string lastGroup = binary.Substring(28, 4);
 
@@ -1531,11 +1505,6 @@ namespace KenshiCore
 
         public string? GetFieldAsString(string field)
         {
-            /*additionalFields.TryGetValue(field, out var ff);
-            if (ff != null)
-                CoreUtils.Print($"field:{field},var:{ff(this)}");
-            else
-                CoreUtils.Print($"field:{field} not found");*/
             additionalFields.TryGetValue(field, out var fieldfunc);
             if (fieldfunc != null)
                 return fieldfunc(this);
