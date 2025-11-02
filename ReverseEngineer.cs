@@ -1111,13 +1111,13 @@ namespace KenshiCore
                 changed!.Add(name + sep + f.Key);
             }
         }
-        public bool isExtraDataOfThis(ModRecord other, string? category = null)
+        public bool isExtraDataOfThis(ModRecord other, string? category = null, int[]? variables=null )
         {
             if (category == null)
             {
                 foreach (Dictionary<string, int[]> d in ExtraDataFields.Values)
                 {
-                    if (d.ContainsKey(other.StringId))
+                    if (d.ContainsKey(other.StringId)&&(variables==null|| d.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
                         return true;
                 }
                 return false;
@@ -1125,26 +1125,30 @@ namespace KenshiCore
             this.ExtraDataFields.TryGetValue(category, out var cat);
             if (cat != null)
             {
-                if (cat.ContainsKey(other.StringId))
+                if (cat.ContainsKey(other.StringId) && (variables == null || cat.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
                     return true;
             }
             return false;
         }
-        public bool hasThisAsExtraData(ModRecord other, string? category = null)
+        public bool hasThisAsExtraData(ModRecord other, string? category = null, int[]? variables = null)
         {
             if (category == null)
             {
                 foreach (Dictionary<string, int[]> d in other.ExtraDataFields.Values)
                 {
-                    if (d.ContainsKey(this.StringId))
+                    if (d.ContainsKey(this.StringId) && (variables == null || d.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
                         return true;
                 }
                 return false;
             }
             other.ExtraDataFields.TryGetValue(category, out var cat);
+            /*if(this.StringId.Equals("50676-RecruitPrisoners.mod")&& (cat != null)&& cat.ContainsKey(this.StringId))
+            {
+                CoreUtils.Print($"inprime {variables!.ToString()}|{string.Join(",",variables)}|{string.Join(",", cat.GetValueOrDefault(this.StringId))}|{cat.GetValueOrDefault(this.StringId)!.Equals(variables)}", 1);
+            }*/
             if (cat != null)
             {
-                if (cat.ContainsKey(this.StringId))
+                if (cat.ContainsKey(this.StringId) && (variables == null || cat.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))//cat.Values.Contains(variables)))
                     return true;
             }
             return false;

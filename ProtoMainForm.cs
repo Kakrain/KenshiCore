@@ -156,7 +156,6 @@ namespace KenshiCore
 
             listHost.Controls.Add(modsListView);
             mainlayout.Controls.Add(listHost, 0, 2);
-            //modsListView.SelectedIndexChanged += SelectedIndexChanged;
             modsListView.ColumnClick += ModsListView_ColumnClick!;
             modsListView.ListViewItemSorter = new ListViewColumnSorter();
 
@@ -216,6 +215,8 @@ namespace KenshiCore
         }
         protected virtual void ModsListView_SelectedIndexChanged(object? sender, EventArgs? e)
         {
+            if (modsListView.SelectedItems.Count == 0)
+                return;
             BeginInvoke((MethodInvoker)delegate
             {
                 ModItem? selectedmod = getSelectedMod();
