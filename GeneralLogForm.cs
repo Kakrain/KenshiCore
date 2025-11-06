@@ -1,19 +1,20 @@
-﻿using System;
+﻿using ScintillaNET;
 using System.Drawing;
-using System.Reflection;
 using System.Text;
-using System.Windows.Forms;
 
 namespace KenshiCore
 {
     public partial class GeneralLogForm : Form
     {
-        private RichTextBox? logTextBox;
+        private Scintilla? logBox;
         private Label? statusLabel;
         private Button? clearButton;
         private Button? saveButton;
         private string title = "General";
         private DateTime startTime;
+
+        private readonly Dictionary<Color, int> styleCache = new();
+        private int nextStyleIndex = 1; // 0 = default
 
         public GeneralLogForm()
         {
@@ -21,18 +22,14 @@ namespace KenshiCore
             startTime = DateTime.Now;
         }
 
-        private void InitializeComponent( string t = "General" )
+        private void InitializeComponent(string t = "General")
         {
             this.Size = new Size(800, 600);
             this.title = t;
-            this.Text = this.title +" Log";
+            this.Text = $"{title} Log";
             this.FormBorderStyle = FormBorderStyle.Sizable;
-            this.MaximizeBox = true;
-            this.MinimizeBox = true;
-            this.ShowInTaskbar = false;
             this.StartPosition = FormStartPosition.CenterParent;
 
-            // Create main layout
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill,
@@ -44,14 +41,13 @@ namespace KenshiCore
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
 
             // Status label
             statusLabel = new Label
             {
-                Text = "Translation Log - Ready",
+                Text = $"{title} Log - Ready",
                 Font = new Font(Font.FontFamily, 10, FontStyle.Bold),
                 Dock = DockStyle.Fill,
                 TextAlign = ContentAlignment.MiddleLeft
@@ -59,54 +55,73 @@ namespace KenshiCore
             layout.Controls.Add(statusLabel, 0, 0);
             layout.SetColumnSpan(statusLabel, 2);
 
-            // Log text box
-            logTextBox = new RichTextBox
+            // Scintilla log box
+            logBox = new Scintilla
             {
                 Dock = DockStyle.Fill,
-                Font = new Font("Consolas", 9),
-                ReadOnly = true,
+                Lexer = Lexer.Null,
+                WrapMode = WrapMode.None,
+                IndentationGuides = IndentView.None,
                 BackColor = Color.FromArgb(30, 30, 30),
-                ForeColor = Color.White,
-                WordWrap = false,
-                ScrollBars = RichTextBoxScrollBars.Both
+                ForeColor = Color.White
             };
-            layout.Controls.Add(logTextBox, 0, 1);
-            layout.SetColumnSpan(logTextBox, 2);
+
+            // Default style
+            logBox.StyleResetDefault();
+            logBox.Styles[Style.Default].Font = "Consolas";
+            logBox.Styles[Style.Default].Size = 9;
+            logBox.Styles[Style.Default].BackColor = Color.FromArgb(30, 30, 30);
+            logBox.Styles[Style.Default].ForeColor = Color.White;
+            logBox.StyleClearAll();
+
+            logBox.Margins[0].Width = 0;
+            logBox.Margins[1].Width = 0;
+            logBox.Margins[2].Width = 0;
+
+            logBox.KeyDown += (s, e) => e.SuppressKeyPress = true;
+
+            layout.Controls.Add(logBox, 0, 1);
+            layout.SetColumnSpan(logBox, 2);
 
             // Buttons
-            clearButton = new Button
-            {
-                Text = "Clear Log",
-                Dock = DockStyle.Fill,
-                Height = 30
-            };
-            clearButton.Click += (s, e) =>
-            {
-                logTextBox.Clear();
-                UpdateStatus();
-            };
+            clearButton = new Button { Text = "Clear Log", Dock = DockStyle.Fill, Height = 30 };
+            clearButton.Click += (s, e) => { logBox.ClearAll(); UpdateStatus(); };
 
-            saveButton = new Button
-            {
-                Text = "Save Log",
-                Dock = DockStyle.Fill,
-                Height = 30
-            };
+            saveButton = new Button { Text = "Save Log", Dock = DockStyle.Fill, Height = 30 };
             saveButton.Click += SaveLog_Click;
 
             layout.Controls.Add(clearButton, 0, 2);
             layout.Controls.Add(saveButton, 1, 2);
+
+            this.Controls.Add(layout);
+
             this.FormClosing += (s, e) =>
             {
                 if (e.CloseReason == CloseReason.UserClosing)
                 {
-                    e.Cancel = true; // cancel the close
-                    this.Hide();     // just hide instead
+                    e.Cancel = true;
+                    this.Hide();
                 }
             };
-            this.Controls.Add(layout);
         }
-        public void LogBlocks(IEnumerable<(string Text, Color Color)> blocks, Action<int, string>? reportProgress = null)
+        public static string CombineBlocksToString(IEnumerable<(string Text, Color Color)> blocks)
+        {
+            if (blocks == null)
+                return string.Empty;
+
+            var sb = new StringBuilder();
+
+            foreach (var (text, _) in blocks)
+            {
+                if (!string.IsNullOrEmpty(text))
+                {
+                    sb.AppendLine(text);
+                }
+            }
+
+            return sb.ToString();
+        }
+        private void LogBlocks(IEnumerable<(string Text, Color Color)> blocks, Action<int, string>? reportProgress = null)
         {
             if (InvokeRequired)
             {
@@ -114,112 +129,107 @@ namespace KenshiCore
                 return;
             }
 
-            logTextBox!.SuspendLayout();
-            logTextBox.Visible = false;
+            var blockList = blocks as IList<(string Text, Color Color)> ?? blocks.ToList();
+            int total = blockList.Count;
+            int count = 0;
+
+            // Temporarily make editable so we can append text
+            logBox!.ReadOnly = false;
+
+            // Suspend layout to reduce flicker
+            logBox.SuspendLayout();
 
             try
             {
-                var blockList = blocks.ToList();
-                int total = blockList.Count;
-                int count = 0;
-
                 foreach (var (text, color) in blockList)
                 {
-                    logTextBox.SelectionStart = logTextBox.TextLength;
-                    logTextBox.SelectionLength = 0;
-                    logTextBox.SelectionColor = color;
-                    logTextBox.AppendText(text + Environment.NewLine);
+                    int start = logBox.TextLength;
+                    logBox.AppendText(text + "\r\n");
+                    int end = logBox.TextLength;
+
+                    logBox.StartStyling(start);
+                    logBox.SetStyling(end - start, GetStyleForColor(color));
 
                     count++;
-                    // Report progress every 50 lines (adjust if needed)
                     if (reportProgress != null && count % 50 == 0)
                         reportProgress(count, $"Logging {count}/{total} lines...");
                 }
 
-                // Final progress update
                 reportProgress?.Invoke(total, $"Finished logging {total} lines.");
             }
             finally
             {
-                logTextBox.Visible = true;
-                logTextBox.ResumeLayout();
-                logTextBox.Invalidate();
+                logBox.ResumeLayout();
+                logBox.Invalidate();
+                logBox.ReadOnly = true;
             }
-
-            logTextBox.SelectionStart = 0;
-            logTextBox.ScrollToCaret();
-
             UpdateStatus();
         }
-        // Append a batch of lines to RichTextBox
-        private void AppendBatch(List<(string Text, Color Color)> batch)
-        {
-            foreach (var (text, color) in batch)
-            {
-                logTextBox!.SelectionStart = logTextBox.TextLength;
-                logTextBox.SelectionLength = 0;
-                logTextBox.SelectionColor = color;
-                logTextBox.AppendText(text + Environment.NewLine);
-            }
-        }
-        
-        public void Log(string text,Color? text_color=null)
+
+        public void LogString(string text, Color? textColor = null)
         {
             if (InvokeRequired)
             {
-                Invoke(new Action<string,Color?>(Log), text, text_color);
+                Invoke(new Action<string, Color?>(LogString), text, textColor);
                 return;
             }
 
-            //translationCount++;
-            var timestamp = DateTime.Now.ToString("HH:mm:ss");
-            //var status = success ? "✓" : "✗";
-            //var color = success ? Color.LightGreen : Color.LightCoral;
+            if (string.IsNullOrEmpty(text))
+                return;
 
-            // Add timestamp and status
-            logTextBox!.SelectionStart = logTextBox.TextLength;
-            logTextBox.SelectionColor = Color.Gray;
-            logTextBox.AppendText($"[{timestamp}] ");
+            logBox!.ReadOnly = false;
+            logBox.SuspendLayout();
 
+            try
+            {
+                int start = logBox.TextLength;
+                logBox.AppendText(text);
+                int end = logBox.TextLength;
 
-            logTextBox.SelectionColor = (Color)(text_color == null ? Color.LightGreen : text_color);//Color.LightBlue;
-            logTextBox.AppendText(text);
-            logTextBox.AppendText(Environment.NewLine);
-
-            logTextBox.SelectionStart = logTextBox.TextLength;
-            logTextBox.ScrollToCaret();
-
+                // apply green style to all appended text
+                logBox.StartStyling(start);
+                logBox.SetStyling(end - start, GetStyleForColor(textColor ?? Color.LightGreen));
+            }
+            finally
+            {
+                logBox.ResumeLayout();
+                logBox.Invalidate();
+                logBox.ReadOnly = true;
+            }
             UpdateStatus();
         }
+        public void Log(string text, Color? textColor = null)
+        {
+            LogBlocks(new List<(string, Color)>
+            {
+                ($"[{DateTime.Now:HH:mm:ss}] {text}", textColor ?? Color.LightGreen)
+            });
+        }
 
+        // Error log
         public void LogError(string error)
         {
-            if (InvokeRequired)
+            LogBlocks(new List<(string, Color)>
             {
-                Invoke(new Action<string>(LogError), error);
-                return;
-            }
+                ($"[{DateTime.Now:HH:mm:ss}] ❌ ERROR: {error}", Color.Red)
+            });
+        }
 
-            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+        private int GetStyleForColor(Color color)
+        {
+            if (styleCache.TryGetValue(color, out int styleId))
+                return styleId;
 
-            logTextBox!.SelectionStart = logTextBox.TextLength;
-            logTextBox.SelectionColor = Color.Gray;
-            logTextBox.AppendText($"[{timestamp}] ");
-
-            logTextBox.SelectionColor = Color.Red;
-            logTextBox.AppendText($"❌ ERROR: {error}");
-            logTextBox.AppendText(Environment.NewLine);
-
-            logTextBox.SelectionStart = logTextBox.TextLength;
-            logTextBox.ScrollToCaret();
-
-            UpdateStatus();
+            styleId = nextStyleIndex++;
+            logBox!.Styles[styleId].ForeColor = color;
+            styleCache[color] = styleId;
+            return styleId;
         }
 
         private void UpdateStatus()
         {
             var elapsed = DateTime.Now - startTime;
-            statusLabel!.Text = $"{title} Log - | Elapsed: {elapsed:hh\\:mm\\:ss}";
+            statusLabel!.Text = $"{title} Log | Elapsed: {elapsed:hh\\:mm\\:ss}";
         }
 
         private void SaveLog_Click(object? sender, EventArgs e)
@@ -227,24 +237,15 @@ namespace KenshiCore
             using var dialog = new SaveFileDialog
             {
                 Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-                DefaultExt = "txt",
-                FileName = $"translation_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+                FileName = $"{title}_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
             };
 
             if (dialog.ShowDialog() == DialogResult.OK)
             {
-                try
-                {
-                    File.WriteAllText(dialog.FileName, logTextBox!.Text);
-                    MessageBox.Show($"Log saved to: {dialog.FileName}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Failed to save log: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                File.WriteAllText(dialog.FileName, logBox!.Text);
+                MessageBox.Show($"Log saved to: {dialog.FileName}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
-
         public void Reset()
         {
             if (InvokeRequired)
@@ -253,8 +254,12 @@ namespace KenshiCore
                 return;
             }
 
-            logTextBox!.Clear();
-            //translationCount = 0;
+            logBox!.ReadOnly = false;
+            logBox.ClearAll();      
+            logBox.Text = string.Empty;  
+            logBox.GotoPosition(0);       
+            logBox.ReadOnly = true;      
+
             startTime = DateTime.Now;
             UpdateStatus();
         }

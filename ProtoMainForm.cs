@@ -1,12 +1,7 @@
 ﻿using System;
 using System.Collections;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Drawing.Interop;
-using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
 using System.Windows.Forms;
-using MethodInvoker = System.Windows.Forms.MethodInvoker;
 
 class ListViewColumnSorter : IComparer
 {
@@ -167,9 +162,6 @@ namespace KenshiCore
             AddButton("Show Log", ShowLogButton_Click);
 
             AddColumn("Mod Name", mod => mod.Name,300);
-
-
-
             modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
 
 
@@ -205,6 +197,7 @@ namespace KenshiCore
             }
 
         }
+
         public GeneralLogForm getLogForm()
         {
             if (logForm == null || logForm.IsDisposed)
@@ -600,6 +593,10 @@ namespace KenshiCore
             modsListView.BeginUpdate();
             try
             {
+                // First, temporarily capture existing mergedMods
+                var reordered = new Dictionary<string, ModItem>();
+
+                // Add all base mods FIRST
                 foreach (var mod in baseGameData)
                 {
                     if (!mergedMods.ContainsKey(mod))
@@ -607,6 +604,23 @@ namespace KenshiCore
                         var m = new ModItem(mod) { IsBaseGame = true, Selected = true };
                         mergedMods[mod] = m;
                     }
+
+                    reordered[mod] = mergedMods[mod];
+                }
+
+                // Then add the rest of the mods in the previous order
+                foreach (var kv in mergedMods)
+                {
+                    if (!reordered.ContainsKey(kv.Key))
+                        reordered[kv.Key] = kv.Value;
+                }
+
+                // Replace the mergedMods dictionary with the reordered one
+                mergedMods = reordered;
+
+                // Finally, ensure the ListView order matches
+                foreach (var mod in baseGameData)
+                {
                     AddModItemToListView(mergedMods[mod], insertFirst: true);
                 }
             }
@@ -616,6 +630,7 @@ namespace KenshiCore
                 modsListView.Refresh();
             }
         }
+
         private void AddModItemToListView(ModItem mod, bool insertFirst = false)
         {
             Image icon = mod.CreateCompositeIcon();
@@ -638,7 +653,7 @@ namespace KenshiCore
             item.UseItemStyleForSubItems = false;
 
             if (insertFirst)
-                modsListView.Items.Insert(0, item); // <<– always on top
+                modsListView.Items.Insert(0, item);
             else
                 modsListView.Items.Add(item);
 

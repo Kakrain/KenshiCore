@@ -202,6 +202,13 @@ namespace KenshiCore
             if (lastGoodPos != ms.Length)
                 header.UnparsedDetails = ms.ToArray()[(int)lastGoodPos..];
         }
+        public List<ModRecord> GetRecordsByTypeMUTABLE(string recordType)
+        {
+            if (!ModRecord.ModTypeNames.TryGetValue(recordType, out int code))
+                throw new FormatException($"Invalid patch definition format: '{recordType}' is not a valid Record Type");
+            return GetRecordsByTypeMUTABLE(code);
+
+        }
         public List<ModRecord> GetRecordsByTypeMUTABLE(int recordType)
         {
             return modData.Records!.Where(r => r.RecordType == recordType).ToList();
@@ -305,6 +312,28 @@ namespace KenshiCore
             }
             return blocks;
         }
+        public string GetHeaderAsString()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            // Header
+            if (modData.Header != null)
+            {
+                sb.AppendLine(("--- MOD HEADER ---"));
+                sb.AppendLine(($"FileType: {modData.Header.FileType}"));
+                sb.AppendLine(($"ModVersion: {modData.Header.ModVersion}"));
+                if (!string.IsNullOrEmpty(modData.Header.Author))
+                    sb.AppendLine(($"Author: {modData.Header.Author}"));
+                if (!string.IsNullOrEmpty(modData.Header.Description))
+                    sb.AppendLine(($"Description: {modData.Header.Description}"));
+                if (!string.IsNullOrEmpty(modData.Header.Dependencies))
+                    sb.AppendLine(($"Dependencies: {modData.Header.Dependencies}"));
+                if (!string.IsNullOrEmpty(modData.Header.References))
+                    sb.AppendLine(($"References: {modData.Header.References}"));
+                sb.AppendLine(($"RecordCount: {modData.Header.RecordCount}"));
+            }
+            return sb.ToString();
+        }
         public List<(string Text, Color Color)> GetRecordsAsBlocks( string? recordTypeFilter = null, List<string>? fieldFilter = null)
         {
             var blocks = new List<(string, Color)>();
@@ -320,6 +349,21 @@ namespace KenshiCore
                 }
             }
             return blocks;
+        }
+        public string GetRecordsAsString(string? recordTypeFilter = null, List<string>? fieldFilter = null)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (modData.Records != null)
+            {
+                foreach (var rec in modData.Records)
+                {
+                    if (recordTypeFilter != null &&
+                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+                        continue;
+                    sb.Append(rec.getDataAsString(fieldFilter));
+                }
+            }
+            return sb.ToString();
         }
         public List<(string Text, Color Color)> CompareWith(ReverseEngineer other,string? recordTypeFilter = null,List<string>? fieldFilter = null)
         {
@@ -711,24 +755,70 @@ namespace KenshiCore
                 }
             }
         }
-        public void testAll(string start = "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/")
+        public void testAll()
         {
-            start = "C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860";
-            foreach (string folder in Directory.GetDirectories(start))
+            List<string> files = new List<string>();
+            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/"))
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.mod"))
+                {
+                    files.Add(file);
+                }
+            }
+            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860"))
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.mod"))
+                {
+                    files.Add(file);
+                }
+            }
+            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/data"))
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.mod"))
+                {
+                    files.Add(file);
+                }
+            }
+            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/data"))
+            {
+                foreach (string file in Directory.GetFiles(folder, "*.base"))
+                {
+                    files.Add(file);
+                }
+            }
+            foreach (string file in files)
+            {
+                this.LoadModFile(file);
+                List<ModRecord> recs = this.GetRecordsByTypeMUTABLE("SQUAD_TEMPLATE");
+                foreach (ModRecord rec in recs)
+                {
+                    //if (rec.isNew())
+                    //    CoreUtils.Print(""+rec.ExtraDataFields.GetValueOrDefault("leader")!.Count(), 1);
+                    if (rec.isNew() && rec.ExtraDataFields != null && rec.ExtraDataFields!.ContainsKey("leader") && rec.ExtraDataFields.GetValueOrDefault("leader")!.Count() > 1)
+                        CoreUtils.Print("listo, malformado en " + rec.ToString(), 0);
+                }
+            }
+            CoreUtils.Print("termino", 1);
+            //dirs.AddRange(Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/"));
+            //dirs.AddRange(Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860"));
+            //dirs.Add("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/data/Dialogue.mod");
+            /*foreach (string folder in dirs)
             {
                 foreach (string file in Directory.GetFiles(folder, "*.mod"))
                 {
                     this.LoadModFile(file);
-                    List<ModRecord> recs=this.GetRecordsByTypeINMUTABLE("CHARACTER");
+                    List<ModRecord> recs=this.GetRecordsByTypeINMUTABLE("SQUAD_TEMPLATE");
                     foreach (ModRecord rec in recs)
                     {
-                        if (rec.isNew() && rec.ExtraDataFields!= null && !rec.ExtraDataFields!.ContainsKey("race"))
-                            CoreUtils.Print("listo, no se encontro en " + this.modname);
+                        //if (rec.isNew())
+                        //    CoreUtils.Print(""+rec.ExtraDataFields.GetValueOrDefault("leader")!.Count(), 1);
+                        if (rec.isNew() && (rec.ExtraDataFields==null || !rec.ExtraDataFields!.ContainsKey("leader") || rec.ExtraDataFields.GetValueOrDefault("leader")!.Count()>0))
+                            CoreUtils.Print("listo, malformado en " + this.modname,1);
                         
 
                     }
                 }
-            }
+            }*/
         }
 
         public ModRecord EnsureRecordExists(ModRecord target)
@@ -760,7 +850,7 @@ namespace KenshiCore
                 ownedtarget.ForceEnsureFieldExist(fieldname, valuetype);
             ownedtarget.SetField(fieldname, value);
         }
-        public void AddExtraData(ModRecord target,ModRecord source, string category)
+        public void AddExtraData(ModRecord target,ModRecord source, string category, int[]? vars=null)
         {
             ModRecord? ownedtarget = EnsureRecordExists(target);
             if (ownedtarget.ExtraDataFields == null)
@@ -776,8 +866,10 @@ namespace KenshiCore
                 cat = new Dictionary<string, int[]>();
                 ownedtarget.ExtraDataFields.Add(category, cat);
             }
-            if(!cat.ContainsKey(source.StringId))
-                cat.Add(source.StringId, new int[] { 0, 0, 0 });
+            if (vars == null)
+                vars = new int[] { 0, 0, 0 };
+            if (!cat.ContainsKey(source.StringId))
+                cat.Add(source.StringId, vars);
         }
         public ModRecord? searchModRecordByStringId(string stringId)
         {
@@ -915,7 +1007,11 @@ namespace KenshiCore
         {
             { "_stringId_", r => r.StringId }
         };
+        public override string ToString()
+        {
+            return this.Name + " | " + this.StringId + " | " + this.getRecordType() + " | " + this.getChangeType();
 
+        }
         public bool EnsureFieldExist(ModRecord source, string field)
         {
             if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field)) { 
@@ -1113,44 +1209,45 @@ namespace KenshiCore
         }
         public bool isExtraDataOfThis(ModRecord other, string? category = null, int[]? variables=null )
         {
+            IEnumerable<Dictionary<string, int[]>> dicts;
+
             if (category == null)
-            {
-                foreach (Dictionary<string, int[]> d in ExtraDataFields.Values)
-                {
-                    if (d.ContainsKey(other.StringId)&&(variables==null|| d.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
-                        return true;
-                }
+                dicts = ExtraDataFields.Values;
+            else if (ExtraDataFields.TryGetValue(category, out var cat))
+                dicts = new[] { cat };
+            else
                 return false;
-            }
-            this.ExtraDataFields.TryGetValue(category, out var cat);
-            if (cat != null)
+            foreach (var d in dicts)
             {
-                if (cat.ContainsKey(other.StringId) && (variables == null || cat.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
+                if (!d.TryGetValue(other.StringId, out var storedVars))
+                    continue;
+
+                if (variables == null || storedVars.SequenceEqual(variables))
                     return true;
             }
+
             return false;
         }
         public bool hasThisAsExtraData(ModRecord other, string? category = null, int[]? variables = null)
         {
+            IEnumerable<Dictionary<string, int[]>> dicts;
+
             if (category == null)
-            {
-                foreach (Dictionary<string, int[]> d in other.ExtraDataFields.Values)
-                {
-                    if (d.ContainsKey(this.StringId) && (variables == null || d.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))
-                        return true;
-                }
+                dicts = other.ExtraDataFields.Values;
+            else if (other.ExtraDataFields.TryGetValue(category, out var cat))
+                dicts = new[] { cat };
+            else
                 return false;
-            }
-            other.ExtraDataFields.TryGetValue(category, out var cat);
-            /*if(this.StringId.Equals("50676-RecruitPrisoners.mod")&& (cat != null)&& cat.ContainsKey(this.StringId))
+
+            foreach (var d in dicts)
             {
-                CoreUtils.Print($"inprime {variables!.ToString()}|{string.Join(",",variables)}|{string.Join(",", cat.GetValueOrDefault(this.StringId))}|{cat.GetValueOrDefault(this.StringId)!.Equals(variables)}", 1);
-            }*/
-            if (cat != null)
-            {
-                if (cat.ContainsKey(this.StringId) && (variables == null || cat.GetValueOrDefault(this.StringId)!.SequenceEqual(variables)))//cat.Values.Contains(variables)))
+                if (!d.TryGetValue(this.StringId, out var storedVars))
+                    continue;
+
+                if (variables == null || storedVars.SequenceEqual(variables))
                     return true;
             }
+
             return false;
         }
 
@@ -1264,6 +1361,64 @@ namespace KenshiCore
                 }
             }
             return blocks;
+        }
+        public string getDataAsString(List<string>? fieldFilter = null)
+        {
+            StringBuilder sb=new StringBuilder();
+            // Record header
+            sb.AppendLine($"--- RECORD: {this.Name} ({this.getRecordType()}) ---");
+            sb.AppendLine($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}");
+
+            bool filterActive = fieldFilter != null && fieldFilter.Count > 0;
+
+            bool ShouldInclude(string fieldName) =>
+            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.Ordinal));
+
+            // Basic fields
+            foreach (var kv in this.BoolFields)
+                if (ShouldInclude(kv.Key))
+                    sb.AppendLine($"Bool: {kv.Key} = {kv.Value}");
+
+            foreach (var kv in this.FloatFields)
+                if (ShouldInclude(kv.Key))
+                    sb.AppendLine($"Float: {kv.Key} = {kv.Value}");
+
+            foreach (var kv in this.LongFields)
+                if (ShouldInclude(kv.Key))
+                    sb.AppendLine($"Long: {kv.Key} = {kv.Value}");
+
+            foreach (var kv in this.StringFields)
+                if (ShouldInclude(kv.Key))
+                    sb.AppendLine($"String: {kv.Key} = {kv.Value}");
+
+            foreach (var kv in this.FilenameFields)
+                if (ShouldInclude(kv.Key))
+                    sb.AppendLine($"Filename: {kv.Key} = {kv.Value}");
+
+            if (fieldFilter != null)
+                return sb.ToString();
+            // ExtraData
+            if (this.ExtraDataFields != null)
+            {
+                foreach (var cat in this.ExtraDataFields)
+                {
+                    sb.AppendLine($"ExtraData Category: {cat.Key}");
+                    foreach (var item in cat.Value)
+                        sb.AppendLine($"  {item.Key} = [{string.Join(",", item.Value)}]");
+                }
+            }
+
+            // Instances
+            if (this.InstanceFields != null)
+            {
+                foreach (var inst in this.InstanceFields)
+                {
+                    sb.AppendLine($"Instance: Id={inst.Id}, Target={inst.Target}, Pos=({inst.Tx},{inst.Ty},{inst.Tz}), Rot=({inst.Rx},{inst.Ry},{inst.Rz},{inst.Rw})");
+                    if (inst.States != null && inst.States.Count > 0)
+                        sb.AppendLine($"  States: {string.Join(",", inst.States)}");
+                }
+            }
+            return sb.ToString();
         }
         public bool isNew()
         {

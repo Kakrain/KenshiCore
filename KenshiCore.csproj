@@ -29,9 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="GeneralLogForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <PackageReference Include="fernandreu.ScintillaNET" Version="4.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="GeneralLogForm.cs" />
   </ItemGroup>
 
 </Project>
