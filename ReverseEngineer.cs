@@ -493,7 +493,7 @@ namespace KenshiCore
 
             return string.Equals(a.ToString(), b.ToString(), StringComparison.Ordinal);
         }
-        private static bool IsNumericType(object o)
+        public static bool IsNumericType(object o)
         {
             return o is byte || o is sbyte || o is short || o is ushort ||
                    o is int || o is uint || o is long || o is ulong ||
