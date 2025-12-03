@@ -178,10 +178,23 @@ namespace KenshiCore
 
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath) && Directory.Exists(ModManager.gamedirModsPath))
                 kenshiDirTextBox.Text = Path.GetDirectoryName(ModManager.gamedirModsPath);
-            if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
+            /*if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
             {
                 var steamRoot = Directory.GetParent(Directory.GetParent(Directory.GetParent(ModManager.workshopModsPath)!.FullName)!.FullName!)!.FullName;
                 steamDirTextBox.Text = steamRoot;
+            }
+            else
+            {
+                steamDirTextBox.Text = ""; // leave blank if Steam/workshop not found
+            }*/
+            if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
+            {
+                var steamRoot = GetSteamRootFromWorkshopPath(ModManager.workshopModsPath);
+                if (!string.IsNullOrEmpty(steamRoot))
+                    steamDirTextBox.Text = steamRoot;
+                else
+                    // fallback to workshopModsPath parent if helper failed
+                    steamDirTextBox.Text = Directory.GetParent(ModManager.workshopModsPath)!.FullName;
             }
             else
             {
@@ -197,7 +210,41 @@ namespace KenshiCore
             }
 
         }
+        private string? GetSteamRootFromWorkshopPath(string? workshopPath)
+        {
+            if (string.IsNullOrEmpty(workshopPath)) return null;
 
+            try
+            {
+                DirectoryInfo? dir = new DirectoryInfo(workshopPath);
+                while (dir != null && !dir.Name.Equals("steamapps", StringComparison.OrdinalIgnoreCase))
+                {
+                    dir = dir.Parent;
+                }
+
+                // dir now points at the "steamapps" directory if found
+                if (dir != null && dir.Parent != null)
+                    return dir.Parent.FullName; // Steam root
+            }
+            catch { /* ignore and fallback below */ }
+
+            // Fallback: if we can't find steamapps, try using the parent chain or return original path
+            try
+            {
+                // If the path happens to already be Steam root (contains steamapps as child), use that.
+                if (Directory.Exists(Path.Combine(workshopPath!, "steamapps")))
+                    return workshopPath;
+
+                // otherwise try a safer up-level normalization
+                var p = new DirectoryInfo(workshopPath!);
+                var parent = p.Parent?.Parent?.Parent?.Parent; // best-effort
+                return parent?.FullName ?? workshopPath;
+            }
+            catch
+            {
+                return workshopPath;
+            }
+        }
         public GeneralLogForm getLogForm()
         {
             if (logForm == null || logForm.IsDisposed)
@@ -263,7 +310,7 @@ namespace KenshiCore
             }
         }
 
-        private void BrowseSteam_Click(object? sender, EventArgs e)
+        /*private void BrowseSteam_Click(object? sender, EventArgs e)
         {
             using var dialog = new FolderBrowserDialog { Description = "Select Steam installation folder" };
             if (dialog.ShowDialog() == DialogResult.OK)
@@ -280,6 +327,33 @@ namespace KenshiCore
                     MessageBox.Show("That folder doesn’t look like a Steam install (steamapps/ missing).");
                 }
             }
+        }*/
+        private void BrowseSteam_Click(object? sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog { Description = "Select Steam installation folder" };
+            if (dialog.ShowDialog() != DialogResult.OK)
+                return;
+
+            string selected = dialog.SelectedPath;
+
+            bool isSteamRoot = Directory.Exists(Path.Combine(selected, "steamapps"));
+            bool isSteamApps = Path.GetFileName(selected)
+                                    .Equals("steamapps", StringComparison.OrdinalIgnoreCase);
+
+            if (!isSteamRoot && !isSteamApps)
+            {
+                MessageBox.Show("That folder doesn’t look like a Steam installation.\nPlease select the Steam folder OR the steamapps folder.");
+                return;
+            }
+
+            // Normalize:
+            // If user selected "steamapps", go one level up so we store the Steam root.
+            if (isSteamApps)
+                selected = Directory.GetParent(selected)!.FullName;
+
+            steamDirTextBox.Text = selected;
+            modM.SetManualSteamPath(selected);
+            TryInitialize();
         }
         protected void TryInitialize()
         {

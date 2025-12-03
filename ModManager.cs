@@ -22,7 +22,7 @@ namespace KenshiCore
             solvePaths();
             _re = re ?? throw new ArgumentNullException(nameof(re)); ;
         }
-        private static string FindSteamInstallPath()
+        /*private static string FindSteamInstallPath()
         {
             // Look in HKCU first (preferred for Steam)
             string? steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string;
@@ -36,6 +36,34 @@ namespace KenshiCore
 
             steamPath = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Valve\Steam", "InstallPath", null) as string;
             return steamPath ?? string.Empty;
+
+
+
+        }*/
+        private static string FindSteamInstallPath()
+        {
+            string? steamPath =
+                Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null)
+                as string
+                ?? Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath", null)
+                as string
+                ?? Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Valve\Steam", "InstallPath", null)
+                as string
+                ?? string.Empty;
+
+            if (string.IsNullOrEmpty(steamPath))
+                return string.Empty;
+
+            // 🛠 FIX: Normalize path if registry points to steamapps
+            if (Path.GetFileName(steamPath)
+                .Equals("steamapps", StringComparison.OrdinalIgnoreCase))
+            {
+                var parent = Directory.GetParent(steamPath);
+                if (parent != null)
+                    steamPath = parent.FullName;
+            }
+
+            return steamPath;
         }
         private static string? FindKenshiInstallDir(string steamPath)
         {
@@ -142,11 +170,6 @@ namespace KenshiCore
             {
                 return result;
             }
-            /*if (!Directory.Exists(workshopModsPath))
-            {
-                MessageBox.Show("workshop folder not found!");
-                return result;
-            }*/
             foreach (var folder in Directory.GetDirectories(workshopModsPath))
             {
                 var files = Directory.GetFiles(folder, "*.mod");
