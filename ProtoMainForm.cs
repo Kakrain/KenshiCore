@@ -52,7 +52,7 @@ namespace KenshiCore
         private Dictionary<Action<ModItem>, bool> showActionCache = new Dictionary<Action<ModItem>, bool>();
         private Dictionary<Button, Func<ModItem, bool>> ButtonCache = new Dictionary<Button,Func<ModItem, bool>>();
 
-
+        protected Boolean shouldResetLog = true;
         protected Boolean shouldLoadBaseGameData = false;
 
         
@@ -64,6 +64,7 @@ namespace KenshiCore
         private Color secondary_color = Color.White;
         private TextBox kenshiDirTextBox;
         private TextBox steamDirTextBox;
+        protected Button ShowLogButton;
         protected Task? InitializationTask { get; private set; }
         private List<(ColumnHeader header, Func<ModItem, object> selector)> columnDefs= new();
         private GeneralLogForm? logForm;
@@ -159,8 +160,8 @@ namespace KenshiCore
             AddButton("Open Mod Directory", OpenGameDirButton_Click,mod=>mod.InGameDir||mod.WorkshopId!=-1);
             AddButton("Open Steam Link", OpenSteamLinkButton_Click,mod=>mod.WorkshopId!=-1);
             AddButton("Copy to GameDir", CopyToGameDirButton_Click,mod=>!mod.InGameDir&&mod.WorkshopId!=-1);
-            AddButton("Show Log", ShowLogButton_Click);
-
+            ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
+            
             AddColumn("Mod Name", mod => mod.Name,300);
             modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
 
@@ -262,7 +263,8 @@ namespace KenshiCore
                 ModItem? selectedmod = getSelectedMod();
                 if (selectedmod == null)
                     return;
-                getLogForm().Reset();
+                if(shouldResetLog)
+                    getLogForm().Reset();
                 modsListView.BeginUpdate();
                 foreach (var kvp in ButtonCache)
                 {
@@ -310,24 +312,6 @@ namespace KenshiCore
             }
         }
 
-        /*private void BrowseSteam_Click(object? sender, EventArgs e)
-        {
-            using var dialog = new FolderBrowserDialog { Description = "Select Steam installation folder" };
-            if (dialog.ShowDialog() == DialogResult.OK)
-            {
-                string selected = dialog.SelectedPath;
-                if (Directory.Exists(Path.Combine(selected, "steamapps")))
-                {
-                    steamDirTextBox.Text = selected;
-                    modM.SetManualSteamPath(selected);
-                    TryInitialize();
-                }
-                else
-                {
-                    MessageBox.Show("That folder doesn’t look like a Steam install (steamapps/ missing).");
-                }
-            }
-        }*/
         private void BrowseSteam_Click(object? sender, EventArgs e)
         {
             using var dialog = new FolderBrowserDialog { Description = "Select Steam installation folder" };
@@ -813,7 +797,12 @@ namespace KenshiCore
                 string filePart = Path.GetFileName(folder_mod);
                 if (!mergedMods.ContainsKey(filePart))
                     mergedMods[filePart] = new ModItem(filePart);
-                mergedMods[filePart].WorkshopId = Convert.ToInt64(folderPart);
+                string? folderName = Path.GetFileName(folderPart);
+                if (long.TryParse(folderName, out long workshopId))//just in case some genius adds non-numeric folders in the workshop dir
+                {
+                    mergedMods[filePart].WorkshopId = workshopId;
+                }
+                //mergedMods[filePart].WorkshopId = Convert.ToInt64(folderPart);
             }
             modIcons.Images.Clear();
             foreach (var mod in mergedMods.Values)

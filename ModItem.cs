@@ -114,5 +114,43 @@ namespace KenshiCore
             CoreUtils.Print($"Error getting mod file path for {Name}",1);
             return null;
         }
+        public string GetPatchTargetPath()
+        {
+            // Base game mods: patch in place
+            if (IsBaseGame)
+                return getModFilePath()!;
+
+            // Already in game dir: patch in place
+            if (InGameDir)
+                return getGamedirModPath()!;
+
+            // Workshop mod: must be copied first
+            if (WorkshopId != -1)
+            {
+                string workshopFolder = Path.Combine(
+                    ModManager.workshopModsPath!,
+                    WorkshopId.ToString()
+                );
+
+                string gameDirFolder = Path.Combine(
+                    ModManager.gamedirModsPath!,
+                    Path.GetFileNameWithoutExtension(Name)
+                );
+
+                string targetModPath = Path.Combine(gameDirFolder, Name);
+
+                // Copy only if not already present
+                if (!Directory.Exists(gameDirFolder))
+                {
+                    CoreUtils.Print($"Copying workshop mod '{Name}' to game dir");
+                    CoreUtils.CopyDirectory(workshopFolder, gameDirFolder);
+                    InGameDir = true;
+                }
+
+                return targetModPath;
+            }
+
+            throw new InvalidOperationException($"Cannot determine patch target for mod '{Name}'");
+        }
     }
 }

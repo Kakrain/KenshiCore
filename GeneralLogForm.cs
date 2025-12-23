@@ -78,8 +78,26 @@ namespace KenshiCore
             logBox.Margins[1].Width = 0;
             logBox.Margins[2].Width = 0;
 
-            logBox.KeyDown += (s, e) => e.SuppressKeyPress = true;
+            //logBox.KeyDown += (s, e) => e.SuppressKeyPress = true;
+            logBox.KeyDown += (s, e) =>
+            {
+                bool isCtrl = e.Control || e.Modifiers.HasFlag(Keys.Control);
 
+                // Allow Ctrl+ combos (copy, paste, select-all, find, etc.)
+                if (isCtrl)
+                    return;
+
+                // Allow basic navigation keys
+                if (e.KeyCode == Keys.Up || e.KeyCode == Keys.Down ||
+                    e.KeyCode == Keys.Left || e.KeyCode == Keys.Right ||
+                    e.KeyCode == Keys.PageUp || e.KeyCode == Keys.PageDown ||
+                    e.KeyCode == Keys.Home || e.KeyCode == Keys.End)
+                    return;
+
+                // Block character input
+                if (!char.IsControl((char)e.KeyValue))
+                    e.SuppressKeyPress = true;
+            };
             layout.Controls.Add(logBox, 0, 1);
             layout.SetColumnSpan(logBox, 2);
 

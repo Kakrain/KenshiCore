@@ -9,6 +9,17 @@ namespace KenshiCore
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
         public static event Action<string, int>? OnPrint;
+
+        public static void CopyDirectory(string sourceDir, string targetDir)
+        {
+            Directory.CreateDirectory(targetDir);
+
+            foreach (var file in Directory.GetFiles(sourceDir))
+                File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: true);
+
+            foreach (var dir in Directory.GetDirectories(sourceDir))
+                CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
+        }
         public static List<string> SplitModList(string? modList)
         {
             if (string.IsNullOrWhiteSpace(modList))
