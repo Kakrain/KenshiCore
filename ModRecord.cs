@@ -760,6 +760,15 @@ namespace KenshiCore
                 return FilenameFields.GetValueOrDefault(field)!.ToString();
             return null;
         }
+
+        public bool isExtraDataEmpty(string? category)
+        {
+            if (ExtraDataFields == null) return true;
+
+            return category == null
+                ? ExtraDataFields.All(cat => cat.Value.Count == 0)
+                : !ExtraDataFields.TryGetValue(category, out var values) || values.Count == 0;
+        }
     }
     public class ModInstance
     {

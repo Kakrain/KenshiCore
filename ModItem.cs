@@ -111,7 +111,6 @@ namespace KenshiCore
             {
                 return getWorkshopModPath();//Path.Combine(ModManager.workshopModsPath!, WorkshopId.ToString(), Name);
             }
-            CoreUtils.Print($"Error getting mod file path for {Name}",1);
             return null;
         }
         public string GetPatchTargetPath()

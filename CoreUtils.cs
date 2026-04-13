@@ -4,12 +4,31 @@ namespace KenshiCore
 {
     public static class CoreUtils
     {
-        private static StreamWriter? _logWriter;
+        //private static CoreUtils? _instance;
         private static readonly object _lock = new object();
+
+        private static StreamWriter? _logWriter;
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
+
         public static event Action<string, int>? OnPrint;
 
+        /*private CoreUtils() { }
+
+        public static CoreUtils Instance
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new CoreUtils();
+                    }
+                    return _instance;
+                }
+            }
+        }*/
         public static void CopyDirectory(string sourceDir, string targetDir)
         {
             Directory.CreateDirectory(targetDir);
@@ -59,7 +78,8 @@ namespace KenshiCore
         {
             // Optional message box
             if (verbose > 0)
-                MessageBox.Show(s);
+                UiService.ShowMessage(s);
+                //MessageBox.Show(s);
 
             System.Diagnostics.Debug.WriteLine(s);
             OnPrint?.Invoke(s, verbose);

@@ -44,23 +44,16 @@ namespace KenshiCore
         public ListView modsListView;
         private ImageList modIcons = new ImageList();
         protected Dictionary<string, ModItem> mergedMods = new Dictionary<string, ModItem>();
-        private List<string> baseGameData = new List<string>();
-        private List<string> gameDirMods = new List<string>();
-        private List<string> selectedMods = new List<string>();
-        private List<string> workshopMods = new List<string>();
 
         private Dictionary<Action<ModItem>, bool> showActionCache = new Dictionary<Action<ModItem>, bool>();
-        private Dictionary<Button, Func<ModItem, bool>> ButtonCache = new Dictionary<Button,Func<ModItem, bool>>();
+        private Dictionary<Button, Func<ModItem?, bool>> ButtonCache = new Dictionary<Button,Func<ModItem?, bool>>();
 
         protected Boolean shouldResetLog = true;
         protected Boolean shouldLoadBaseGameData = false;
 
-        
         private Dictionary<string, ListViewItem> modItemsLookup = new();
         private List<ListViewItem> originalOrder = new();
-        private ProgressBar progressBar;
-        private Label progressLabel;
-        private ModManager modM;
+        private ModManager modM=ModManager.Instance;
         private Color secondary_color = Color.White;
         private TextBox kenshiDirTextBox;
         private TextBox steamDirTextBox;
@@ -135,12 +128,7 @@ namespace KenshiCore
             mainlayout.SetColumnSpan(dirTable, 2);
 
 
-
-            progressBar = new ProgressBar { Dock = DockStyle.Fill, Height = 20, Minimum = 0, Maximum = 0, Value = 0 };
-            mainlayout.Controls.Add(progressBar, 0, 1);
-
-            progressLabel = new Label { Dock = DockStyle.Fill, Height = 20, Text = "Ready", TextAlign = ContentAlignment.MiddleLeft };
-            mainlayout.Controls.Add(progressLabel, 1, 1);
+            ProgressController.Instance.Build(mainlayout);
 
             modsListView = new ListView
             {
@@ -157,20 +145,14 @@ namespace KenshiCore
 
             mainlayout.Controls.Add(buttonPanel, 1, 2);
 
-            AddButton("Open Mod Directory", OpenGameDirButton_Click,mod=>mod.InGameDir||mod.WorkshopId!=-1);
-            AddButton("Open Steam Link", OpenSteamLinkButton_Click,mod=>mod.WorkshopId!=-1);
-            AddButton("Copy to GameDir", CopyToGameDirButton_Click,mod=>!mod.InGameDir&&mod.WorkshopId!=-1);
+            AddButton("Open Mod Directory", OpenGameDirButton_Click,mod=>(mod!=null)&&(mod.InGameDir||mod.WorkshopId!=-1));
+            AddButton("Open Steam Link", OpenSteamLinkButton_Click,mod=> (mod != null) && mod.WorkshopId!=-1);
+            AddButton("Copy to GameDir", CopyToGameDirButton_Click,mod=> (mod != null) && !mod.InGameDir&&mod.WorkshopId!=-1);
             ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
             
             AddColumn("Mod Name", mod => mod.Name,300);
             modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
-
-
-
             logForm = new GeneralLogForm();
-
-
-            modM =new ModManager(new ReverseEngineer());
 
             foreach (var kvp in ButtonCache)
             {
@@ -179,15 +161,6 @@ namespace KenshiCore
 
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath) && Directory.Exists(ModManager.gamedirModsPath))
                 kenshiDirTextBox.Text = Path.GetDirectoryName(ModManager.gamedirModsPath);
-            /*if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
-            {
-                var steamRoot = Directory.GetParent(Directory.GetParent(Directory.GetParent(ModManager.workshopModsPath)!.FullName)!.FullName!)!.FullName;
-                steamDirTextBox.Text = steamRoot;
-            }
-            else
-            {
-                steamDirTextBox.Text = ""; // leave blank if Steam/workshop not found
-            }*/
             if (!string.IsNullOrEmpty(ModManager.workshopModsPath) && Directory.Exists(ModManager.workshopModsPath))
             {
                 var steamRoot = GetSteamRootFromWorkshopPath(ModManager.workshopModsPath);
@@ -207,9 +180,8 @@ namespace KenshiCore
             }
             else
             {
-                progressLabel.Text = "Please set Kenshi directory.";
+                ProgressController.Instance.setLabel("Please set Kenshi directory.");
             }
-
         }
         private string? GetSteamRootFromWorkshopPath(string? workshopPath)
         {
@@ -261,8 +233,6 @@ namespace KenshiCore
             BeginInvoke((MethodInvoker)delegate
             {
                 ModItem? selectedmod = getSelectedMod();
-                if (selectedmod == null)
-                    return;
                 if(shouldResetLog)
                     getLogForm().Reset();
                 modsListView.BeginUpdate();
@@ -272,7 +242,7 @@ namespace KenshiCore
                 }
                 foreach (var kvp in showActionCache)
                 {
-                    if (kvp.Value)
+                    if (kvp.Value  && selectedmod!=null)
                         kvp.Key(selectedmod);
                 }
                 
@@ -283,7 +253,6 @@ namespace KenshiCore
         private void ShowLogButton_Click(object? sender, EventArgs e)
         {
             logForm = getLogForm();
-
             if (logForm.Visible)
             {
                 logForm.BringToFront();
@@ -295,21 +264,13 @@ namespace KenshiCore
         }
         private void BrowseKenshi_Click(object? sender, EventArgs e)
         {
-            using var dialog = new FolderBrowserDialog { Description = "Select Kenshi installation folder" };
-            if (dialog.ShowDialog() == DialogResult.OK)
+            if (!modM.PromptAndSetKenshiPath())
             {
-                string selected = dialog.SelectedPath;
-                if ((File.Exists(Path.Combine(selected, "kenshi.exe")) || File.Exists(Path.Combine(selected, "kenshi_x64.exe"))) && Directory.Exists(Path.Combine(selected, "data")))
-                {
-                    kenshiDirTextBox.Text = selected;
-                    modM.SetManualKenshiPath(selected);
-                    TryInitialize();
-                }
-                else
-                {
-                    MessageBox.Show("That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).");
-                }
+                MessageBox.Show("That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).");
+                return;
             }
+            kenshiDirTextBox.Text = ModManager.gamedirModsPath; // automatically updated
+            TryInitialize();
         }
 
         private void BrowseSteam_Click(object? sender, EventArgs e)
@@ -317,13 +278,9 @@ namespace KenshiCore
             using var dialog = new FolderBrowserDialog { Description = "Select Steam installation folder" };
             if (dialog.ShowDialog() != DialogResult.OK)
                 return;
-
             string selected = dialog.SelectedPath;
-
             bool isSteamRoot = Directory.Exists(Path.Combine(selected, "steamapps"));
-            bool isSteamApps = Path.GetFileName(selected)
-                                    .Equals("steamapps", StringComparison.OrdinalIgnoreCase);
-
+            bool isSteamApps = Path.GetFileName(selected).Equals("steamapps", StringComparison.OrdinalIgnoreCase);
             if (!isSteamRoot && !isSteamApps)
             {
                 MessageBox.Show("That folder doesn’t look like a Steam installation.\nPlease select the Steam folder OR the steamapps folder.");
@@ -404,48 +361,28 @@ namespace KenshiCore
                     btn.FlatAppearance.BorderSize = 0;
                 }
             }
-
         }
-        protected void InitializeProgress(int init, int total)
-        {
-            if (IsHandleCreated)
-                Invoke((Action)(() =>
-                {
-                    progressBar.Value = init;
-                    progressBar.Minimum = init;
-                    progressBar.Maximum = total;
-                    progressLabel.Text = "";
-                }));
-        }
-
-        protected void ReportProgress(int done,string labelText) {
-            if (IsHandleCreated)
-                Invoke((Action)(() =>
-                {
-                    progressBar.Value = done;
-                    progressLabel.Text = labelText;
-                }));
-        }
-        
         protected virtual void SetupColumns() { }
 
-        protected Button AddButton(string text, EventHandler onClick,Func<ModItem,bool>? enabledFunc = null)
+        protected Button AddButton(string text, EventHandler onClick,Func<ModItem?,bool>? enabledFunc = null)
         {
             enabledFunc ??= m => true;
             var button = new Button
             {
                 Text = text,
-                AutoSize = true
+                AutoSize = true,
+                Enabled = false
             };
             button.Click += onClick;
             button.FlatStyle = FlatStyle.Flat;
             button.BackColor = secondary_color;
             button.FlatAppearance.BorderSize = 0;
             buttonPanel.Controls.Add(button);
-
-
             ButtonCache.Add(button, enabledFunc);
-
+            if (modsListView.SelectedItems.Count > 0)
+            {
+                button.Enabled = enabledFunc(getSelectedMod());
+            }
             return button;
         }
 
@@ -485,16 +422,10 @@ namespace KenshiCore
             //modsListView.Invalidate();
             UpdateColumnSortMarker(sorter.Column, sorter.Order);
         }
-
+        
         private async Task InitializeAsync()
         {
-            progressLabel.Text = "Loading mods...";
-            progressBar.Style = ProgressBarStyle.Marquee;
-            baseGameData = await Task.Run(() => modM.LoadBaseGameData());
-            gameDirMods = await Task.Run(() => modM.LoadGameDirMods());
-            selectedMods = await Task.Run(() => modM.LoadSelectedMods());
-            workshopMods = await Task.Run(() => modM.LoadWorkshopMods());
-
+            await Task.Run(() => LoadMods());
             modIcons.ImageSize = new Size(48, 16);
             modsListView.SmallImageList = modIcons;
             modsListView.OwnerDraw = false;//true;
@@ -506,10 +437,9 @@ namespace KenshiCore
                 modIcons.ImageSize = new Size(48, 16);
                 modsListView.SmallImageList = modIcons;
                 PopulateModsListView();
-
-                progressBar.Style = ProgressBarStyle.Continuous;
-                progressLabel.Text = "Ready";
             });
+
+            await AfterModsLoadedAsync();
         }
         private void ModsListView_DrawColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
         {
@@ -570,7 +500,6 @@ namespace KenshiCore
                 MessageBox.Show("This mod is not from the Steam Workshop.");
             }
         }
-
         private void CopyToGameDirButton_Click(object? sender, EventArgs e)
         {
             if (string.IsNullOrEmpty(ModManager.workshopModsPath))
@@ -591,7 +520,6 @@ namespace KenshiCore
                 MessageBox.Show("Mod already exists in GameDir!");
                 return;
             }
-
             CopyDirectory(workshopFolder, gameDirFolder);
             mod.InGameDir = true;
             modsListView.SelectedItems[0].ImageKey = mod.Name;
@@ -646,53 +574,9 @@ namespace KenshiCore
 
             return new Rectangle(x, 0, list.Columns[colIndex].Width, list.Height);
         }
-        protected void LoadBaseGameData()
-        {
-            modsListView.BeginUpdate();
-            try
-            {
-                // First, temporarily capture existing mergedMods
-                var reordered = new Dictionary<string, ModItem>();
-
-                // Add all base mods FIRST
-                foreach (var mod in baseGameData)
-                {
-                    if (!mergedMods.ContainsKey(mod))
-                    {
-                        var m = new ModItem(mod) { IsBaseGame = true, Selected = true };
-                        mergedMods[mod] = m;
-                    }
-
-                    reordered[mod] = mergedMods[mod];
-                }
-
-                // Then add the rest of the mods in the previous order
-                foreach (var kv in mergedMods)
-                {
-                    if (!reordered.ContainsKey(kv.Key))
-                        reordered[kv.Key] = kv.Value;
-                }
-
-                // Replace the mergedMods dictionary with the reordered one
-                mergedMods = reordered;
-
-                // Finally, ensure the ListView order matches
-                foreach (var mod in baseGameData)
-                {
-                    AddModItemToListView(mergedMods[mod], insertFirst: true);
-                }
-            }
-            finally
-            {
-                modsListView.EndUpdate();
-                modsListView.Refresh();
-            }
-        }
-
         private void AddModItemToListView(ModItem mod, bool insertFirst = false)
         {
             Image icon = mod.CreateCompositeIcon();
-
             if (!modIcons.Images.ContainsKey(mod.Name))
                 modIcons.Images.Add(mod.Name, icon);
 
@@ -722,35 +606,35 @@ namespace KenshiCore
         }
         protected void ExcludeUnselectedMods()
         {
-            // Remove mods from mergedMods that are not in selectedMods
-            var toRemove = mergedMods.Keys
-                .Where(modName => !selectedMods.Contains(modName, StringComparer.Ordinal))
-                .ToList();
-
-            foreach (var modName in toRemove)
-                mergedMods.Remove(modName);
-
-            // Update the ListView accordingly
+            mergedMods = ModRepository.Instance.FilterSelectedMods(mergedMods);
+            RefreshListView();
+        }
+        private void RefreshListView()
+        {
             modsListView.BeginUpdate();
             try
             {
-                foreach (ListViewItem item in modsListView.Items.Cast<ListViewItem>().ToList())
+                modsListView.Items.Clear();
+                originalOrder.Clear();
+
+                foreach (var mod in mergedMods.Values)
                 {
-                    if (item.Tag is ModItem mod && !selectedMods.Contains(mod.Name, StringComparer.Ordinal))
-                    {
-                        modsListView.Items.Remove(item);
-                        originalOrder.Remove(item);
-                    }
+                    AddModItemToListView(mod);
                 }
             }
             finally
             {
                 modsListView.EndUpdate();
-                modsListView.Refresh();
             }
-
         }
-
+        protected virtual void LoadMods()
+        {
+            throw new NotImplementedException("Please override LoadMods in your form to load mods into the ModManager.");
+        }
+        protected virtual Task AfterModsLoadedAsync()
+        {
+            return Task.CompletedTask;
+        }
         protected void AddToggle(string label, Action<ModItem> onToggled, bool initialState = false)
         {
             var checkbox = new CheckBox
@@ -773,37 +657,12 @@ namespace KenshiCore
 
             buttonPanel.Controls.Add(checkbox);
         }
+
         protected virtual void PopulateModsListView()
         {
             modsListView.Items.Clear();
             originalOrder.Clear();
-            
-            foreach (var mod in selectedMods)
-            {
-                if (!mergedMods.ContainsKey(mod))
-                    mergedMods[mod] = new ModItem(mod);
-                mergedMods[mod].Selected = true;
-            }
-            foreach (var mod in gameDirMods)
-            {
-                if (!mergedMods.ContainsKey(mod))
-                    mergedMods[mod] = new ModItem(mod);
-                mergedMods[mod].InGameDir = true;
-            }
-            foreach (var folder_mod in workshopMods)
-            {
-                string? folderPart = Path.GetDirectoryName(folder_mod!);
-                if (folderPart == null) continue;
-                string filePart = Path.GetFileName(folder_mod);
-                if (!mergedMods.ContainsKey(filePart))
-                    mergedMods[filePart] = new ModItem(filePart);
-                string? folderName = Path.GetFileName(folderPart);
-                if (long.TryParse(folderName, out long workshopId))//just in case some genius adds non-numeric folders in the workshop dir
-                {
-                    mergedMods[filePart].WorkshopId = workshopId;
-                }
-                //mergedMods[filePart].WorkshopId = Convert.ToInt64(folderPart);
-            }
+            mergedMods = ModRepository.Instance.GetMergedMods();
             modIcons.Images.Clear();
             foreach (var mod in mergedMods.Values)
             {

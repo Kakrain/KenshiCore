@@ -88,35 +88,51 @@ namespace KenshiCore
         }
         public void LoadModFile(string path)
         {
-            //modname
-            modData = new ModData();
-            using var fs = File.OpenRead(path);
-            using var reader = new BinaryReader(fs, Encoding.UTF8);
-
-            string fileName = Path.GetFileName(path);
-            string extension = Path.GetExtension(fileName).ToLowerInvariant();
-
-            if (extension != ".mod" && extension != ".base")
+            try
             {
-                fileName = Path.GetFileNameWithoutExtension(fileName) + ".mod";
+                modData = new ModData();
+                using var fs = File.OpenRead(path);//Zombie Land
+                using var reader = new BinaryReader(fs, Encoding.UTF8);
+
+                string fileName = Path.GetFileName(path);
+                string extension = Path.GetExtension(fileName).ToLowerInvariant();
+
+                if (extension != ".mod" && extension != ".base")
+                {
+                    fileName = Path.GetFileNameWithoutExtension(fileName) + ".mod";
+                }
+
+                // Store canonical mod name (used for StringID creation etc.)
+                this.modname = fileName;
+
+                modData.Header = ParseHeader(reader);
+                int recordCount = modData.Header.RecordCount;
+                modData.Records = new List<ModRecord>();
+                for (int i = 0; i < recordCount; i++)
+                {
+                    try
+                    {
+                        modData.Records.Add(ParseRecord(reader));
+                    }
+                    catch (EndOfStreamException ex)
+                    {
+                        Console.WriteLine($"⚠ End of stream while reading record {i} in {fileName}: {ex.Message}");
+                        break; // stop reading further records for this mod
+                    }
+                    //modData.Records.Add(ParseRecord(reader));
+                }
+                TryParseDetails(modData.Header);
+                long leftover = fs.Length - fs.Position;
+                if (leftover > 0)
+                {
+                    modData.Leftover = reader.ReadBytes((int)leftover);
+                    Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
+                }
             }
-
-            // Store canonical mod name (used for StringID creation etc.)
-            this.modname = fileName;
-
-            modData.Header = ParseHeader(reader);
-            int recordCount = modData.Header.RecordCount;
-            modData.Records = new List<ModRecord>();
-            for (int i = 0; i < recordCount; i++)
+            catch (Exception ex)
             {
-                modData.Records.Add(ParseRecord(reader));
-            }
-            TryParseDetails(modData.Header);
-            long leftover = fs.Length - fs.Position;
-            if (leftover > 0)
-            {
-                modData.Leftover = reader.ReadBytes((int)leftover);
-                Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
+                Console.WriteLine($"⚠ Failed to load mod file '{path}': {ex.Message}");
+                // Optionally: rethrow or mark mod as invalid
             }
         }
         public static int readJustVersion(string path)
@@ -999,6 +1015,25 @@ namespace KenshiCore
             while (usedNumbers.Contains(candidate))
                 candidate++;
             return candidate;
+        }
+
+        public ModRecord searchModRecordByStringIdLocally(string id)
+        {
+            return searchModRecordByStringId(id)!;
+        }
+        public void SetText(ModRecord record, Func<string, string> modifier)
+        {
+            ModRecord ownedtarget = EnsureRecordExists(record);
+
+            for (int i = 0; ; i++)
+            {
+                string field = "text" + i;
+                string? textValue = record.GetFieldAsString(field);
+                if (textValue == null || textValue  == "")
+                    break;
+                ownedtarget.EnsureFieldExist(record, field);
+                ownedtarget.SetField(field, modifier(textValue));
+            }
         }
     }
     public class ModData

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace KenshiCore
 {
@@ -11,6 +12,7 @@ namespace KenshiCore
 
         private readonly Dictionary<string, Dictionary<string, ModRecord>>_mergedByTypeAndId = new(StringComparer.Ordinal);
         private static ReverseEngineerRepository? _instance;
+        public bool busy { get; private set; } = false;
 
         private static readonly HashSet<string> _ignoredModNames =
             new HashSet<string>(StringComparer.Ordinal)
@@ -50,6 +52,8 @@ namespace KenshiCore
         }
         // Dictionary keyed by mod name
         private readonly Dictionary<string, ReverseEngineer> _reverseEngineers = new();
+
+        //private readonly List<(string name, ReverseEngineer re)> _loadOrder;
 
         private ReverseEngineerRepository() { }
 
@@ -155,6 +159,7 @@ namespace KenshiCore
         public void Clear()
         {
             _reverseEngineers.Clear();
+            _mergedByTypeAndId.Clear();
         }
         public List<string> GetAssumedRequiredRecords()
         {
@@ -196,6 +201,55 @@ namespace KenshiCore
 
             CoreUtils.Print($"Parsed mod selector '{selector}' to {result.Count} mods.");
             return result;
+        }
+
+        public ModRecord? searchModRecordByStringIdGlobally (string id, bool getEarly)
+        {
+            ModRecord? result = null;
+            foreach (var kvp in _reverseEngineers)
+            {
+                var record = kvp.Value.searchModRecordByStringIdLocally(id);
+                if (record != null && record.isNew())
+                {
+                    result = record.deepClone();
+                    break;
+                }
+            }
+            if (result == null || getEarly)
+                return result;
+            foreach (var kvp in _reverseEngineers)
+            {
+                var record = kvp.Value.searchModRecordByStringIdLocally(id);
+                if (record != null && !record.isNew())
+                    result.applyChangesFrom(record);
+            }
+            return result;
+        }
+
+        public void LoadFromMods(Dictionary<string, ModItem> mods, Func<ModItem, string?> pathSelector)
+        {
+            busy = true;
+            Clear();
+            ProgressController progress = ProgressController.Instance;
+            progress.Initialize(mods.Count);
+            int i = 0;
+
+            foreach (var kv in mods)
+            {
+                string? path = pathSelector(kv.Value);
+                if (string.IsNullOrEmpty(path))
+                    continue;
+
+                var re = new ReverseEngineer();
+                re.LoadModFile(path);
+
+                AddOrUpdate(kv.Key, re);
+
+                i++;
+                progress.Report(i, $"Engineered mod {i}");
+            }
+            progress.Finish();
+            busy = false;
         }
     }
 }

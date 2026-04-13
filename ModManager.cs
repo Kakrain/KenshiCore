@@ -9,37 +9,23 @@ namespace KenshiCore
 {
     public class ModManager
     {
+
+        private static ModManager? _instance;
+        public static ModManager Instance => _instance ??= new ModManager();
+
         private readonly ReverseEngineer _re;
         private readonly object _lock = new();
 
         private static string? steamInstallPath;
-        private static string? kenshiPath;
+        public static string? kenshiPath;
         public static string? gamedirModsPath;
         public static string? workshopModsPath;
-        public ModManager(ReverseEngineer re)
+        private ModManager()
         {
-
+            _re = new ReverseEngineer();
             solvePaths();
-            _re = re ?? throw new ArgumentNullException(nameof(re)); ;
         }
-        /*private static string FindSteamInstallPath()
-        {
-            // Look in HKCU first (preferred for Steam)
-            string? steamPath = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string;
-            if (!string.IsNullOrEmpty(steamPath))
-                return steamPath;
-
-            // Fallback to HKLM for older installs
-            steamPath = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam", "InstallPath", null) as string;
-            if (!string.IsNullOrEmpty(steamPath))
-                return steamPath;
-
-            steamPath = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Valve\Steam", "InstallPath", null) as string;
-            return steamPath ?? string.Empty;
-
-
-
-        }*/
+        
         private static string FindSteamInstallPath()
         {
             string? steamPath =
@@ -54,7 +40,7 @@ namespace KenshiCore
             if (string.IsNullOrEmpty(steamPath))
                 return string.Empty;
 
-            // 🛠 FIX: Normalize path if registry points to steamapps
+            // Normalize path if registry points to steamapps
             if (Path.GetFileName(steamPath)
                 .Equals("steamapps", StringComparison.OrdinalIgnoreCase))
             {
@@ -74,20 +60,11 @@ namespace KenshiCore
                 if (Directory.Exists(defaultPath))
                     return defaultPath;
             }
+            string? folder = UiService.PickFolder("Please select your Kenshi installation folder (it should contain data/mods.cfg).");
+            if (!string.IsNullOrEmpty(folder) && File.Exists(Path.Combine(folder, "data", "mods.cfg")))
+                return folder;
 
-            // 2. If not found, ask the user
-            using var dialog = new FolderBrowserDialog
-            {
-                Description = "Please select your Kenshi installation folder (it should contain data/mods.cfg)."
-            };
-            if (dialog.ShowDialog() == DialogResult.OK)
-            {
-                if (File.Exists(Path.Combine(dialog.SelectedPath, "data", "mods.cfg")))
-                    return dialog.SelectedPath;
-                else
-                    MessageBox.Show("That folder doesn’t look like a Kenshi install (mods.cfg not found).");
-            }
-
+            UiService.ShowMessage("That folder doesn’t look like a Kenshi install (mods.cfg not found).");
             return null;
         }
         public void solvePaths()
@@ -103,7 +80,7 @@ namespace KenshiCore
             gamedirModsPath = Path.Combine(kenshiPath, "mods");
             workshopModsPath = Path.Combine(steamInstallPath!, "steamapps", "workshop", "content", "233860");
         }
-        public List<string> LoadBaseGameData()
+        /*public List<string> LoadBaseGameData()
         {
             var list = new List<string>();
             try
@@ -142,7 +119,7 @@ namespace KenshiCore
                 }
             }
             return result;
-        }
+        }*/
         public void SetManualSteamPath(string path)
         {
             if (!Directory.Exists(path)) throw new DirectoryNotFoundException(path);
@@ -163,45 +140,34 @@ namespace KenshiCore
             else
                 workshopModsPath = null;
         }
-        public List<string> LoadWorkshopMods()
+        public bool TrySetKenshiPath(string path, out string errorMessage)
         {
-            var result = new List<string>();
-            if (string.IsNullOrEmpty(workshopModsPath) || !Directory.Exists(workshopModsPath))
+            errorMessage = "";
+            if (!Directory.Exists(path))
             {
-                return result;
+                errorMessage = "Selected folder does not exist.";
+                return false;
             }
-            foreach (var folder in Directory.GetDirectories(workshopModsPath))
+
+            bool hasExe = File.Exists(Path.Combine(path, "kenshi.exe")) || File.Exists(Path.Combine(path, "kenshi_x64.exe"));
+            bool hasData = Directory.Exists(Path.Combine(path, "data"));
+
+            if (!hasExe || !hasData)
             {
-                var files = Directory.GetFiles(folder, "*.mod");
-                foreach (var file in files)
-                {
-                    string parentFolder = new DirectoryInfo(Path.GetDirectoryName(file)!).Name;
-                    string fileName = Path.GetFileName(file);
-                    string relativeName = Path.Combine(parentFolder, fileName);
-                    result.Add(relativeName);
-                }
+                errorMessage = "That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).";
+                return false;
             }
-            return result;
+
+            SetManualKenshiPath(path);
+            return true;
         }
-        public List<string> LoadSelectedMods()
+        public bool PromptAndSetKenshiPath()
         {
-            var result = new List<string>();
-            if (string.IsNullOrEmpty(kenshiPath))
-                return result;
-            string cfgPath = Path.Combine(kenshiPath, "data", "mods.cfg");
+            string? folder = UiService.PickFolder("Please select your Kenshi installation folder (it should contain kenshi.exe and data/).");
+            if (string.IsNullOrEmpty(folder))
+                return false;
 
-            if (!File.Exists(cfgPath))
-            {
-                MessageBox.Show("mods.cfg not found!");
-                return result;
-            }
-
-            foreach (var line in File.ReadAllLines(cfgPath))
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                    result.Add(line.Trim());
-            }
-            return result;
+            return TrySetKenshiPath(folder, out _);
         }
         public void LoadModFile(string modPath)
         {
@@ -215,7 +181,15 @@ namespace KenshiCore
                 _re.LoadModFile(modPath);
             }
         }
+        public void LoadAllMods()
+        {
+            if (string.IsNullOrEmpty(gamedirModsPath) || string.IsNullOrEmpty(workshopModsPath)) return;
 
+            ModRepository.Instance.LoadBaseGameMods(Path.Combine(kenshiPath!, "data"));
+            ModRepository.Instance.LoadGameDirMods(gamedirModsPath);
+            ModRepository.Instance.LoadWorkshopMods(workshopModsPath);
+            ModRepository.Instance.LoadSelectedMods(Path.Combine(kenshiPath!, "data", "mods.cfg"));
+        }
         public ReverseEngineer GetReverseEngineer() => _re;
     }
 
