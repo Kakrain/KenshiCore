@@ -33,7 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Update="GeneralLogForm.cs" />
+    <Compile Update="UI\GeneralLogForm.cs" />
   </ItemGroup>
 
 </Project>

@@ -1,11 +1,12 @@
-﻿
+﻿using KenshiCore.Mods;
+using KenshiCore.Utilities;
 using System;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace KenshiCore
+namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {

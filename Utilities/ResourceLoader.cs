@@ -1,5 +1,5 @@
 ﻿using System.Reflection;
-namespace KenshiCore
+namespace KenshiCore.Utilities
 {
     public static class ResourceLoader
     {

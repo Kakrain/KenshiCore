@@ -1,11 +1,15 @@
-﻿using System;
+﻿using KenshiCore.Mods;
+using KenshiCore.UI;
+using KenshiCore.Utilities;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using static System.Net.Mime.MediaTypeNames;
 
-namespace KenshiCore
+namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineerRepository
     {
@@ -51,7 +55,7 @@ namespace KenshiCore
             return _mergedByTypeAndId[recordType].ContainsKey(stringId);
         }
         // Dictionary keyed by mod name
-        private readonly Dictionary<string, ReverseEngineer> _reverseEngineers = new();
+        private readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
 
         //private readonly List<(string name, ReverseEngineer re)> _loadOrder;
 
@@ -66,19 +70,10 @@ namespace KenshiCore
             _reverseEngineers[modName] = re;
             return true;
         }
-        public Dictionary<string, ReverseEngineer>  getCache()
+        public ConcurrentDictionary<string, ReverseEngineer>  getCache()
         {
             return _reverseEngineers;
         }
-
-        // Remove a ReverseEngineer by name
-        public bool Remove(string modName)
-        {
-            return _reverseEngineers.Remove(modName);
-        }
-
-        // Get all ReverseEngineers
-        public IReadOnlyCollection<ReverseEngineer> GetAll() => _reverseEngineers.Values;
 
         // Get a specific ReverseEngineer by mod name
         public bool TryGet(string modName, out ReverseEngineer? re) => _reverseEngineers.TryGetValue(modName, out re);

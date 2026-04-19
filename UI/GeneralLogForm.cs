@@ -2,7 +2,7 @@
 using System.Drawing;
 using System.Text;
 
-namespace KenshiCore
+namespace KenshiCore.UI
 {
     public partial class GeneralLogForm : Form
     {
@@ -261,7 +261,7 @@ namespace KenshiCore
             if (dialog.ShowDialog() == DialogResult.OK)
             {
                 File.WriteAllText(dialog.FileName, logBox!.Text);
-                MessageBox.Show($"Log saved to: {dialog.FileName}", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                UiService.ShowMessage($"Log saved to: {dialog.FileName}");
             }
         }
         public void Reset()

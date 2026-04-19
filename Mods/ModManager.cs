@@ -1,16 +1,20 @@
-﻿using Microsoft.Win32;
+﻿using KenshiCore.ReverseEngineering;
+using KenshiCore.UI;
+using KenshiCore.Utilities;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace KenshiCore
+namespace KenshiCore.Mods
 {
     public class ModManager
     {
 
         private static ModManager? _instance;
+        private AppConfig config;
         public static ModManager Instance => _instance ??= new ModManager();
 
         private readonly ReverseEngineer _re;
@@ -23,6 +27,7 @@ namespace KenshiCore
         private ModManager()
         {
             _re = new ReverseEngineer();
+            config = AppConfig.Load();
             solvePaths();
         }
         
@@ -69,63 +74,25 @@ namespace KenshiCore
         }
         public void solvePaths()
         {
-            
-            steamInstallPath=FindSteamInstallPath();
-            kenshiPath=FindKenshiInstallDir(steamInstallPath);
+            steamInstallPath = config.SteamPath ?? FindSteamInstallPath();
+            kenshiPath = config.KenshiPath ?? FindKenshiInstallDir(steamInstallPath);
             if (string.IsNullOrEmpty(kenshiPath))
             {
-                MessageBox.Show("Kenshi installation not found!");
+                UiService.ShowMessage("Kenshi installation not found!\n Please set it manually by clicking the \"Browse\" button.");
                 return;
             }
             gamedirModsPath = Path.Combine(kenshiPath, "mods");
-            workshopModsPath = Path.Combine(steamInstallPath!, "steamapps", "workshop", "content", "233860");
+            if (!string.IsNullOrEmpty(steamInstallPath))
+                workshopModsPath = Path.Combine(steamInstallPath!, "steamapps", "workshop", "content", "233860");
         }
-        /*public List<string> LoadBaseGameData()
-        {
-            var list = new List<string>();
-            try
-            {
-                if (!string.IsNullOrEmpty(gamedirModsPath))
-                {
-                    string dataPath = Path.Combine(Path.GetDirectoryName(gamedirModsPath)!, "data");
-                    if (Directory.Exists(dataPath))
-                    {
-                        foreach (var file in Directory.GetFiles(dataPath, "*.mod"))
-                            list.Add(Path.GetFileName(file));
-                        foreach (var file in Directory.GetFiles(dataPath, "*.base"))
-                            list.Add(Path.GetFileName(file));
-                    }
-                }
-            }
-            catch { }
-            return list;
-        }
-        public List<string> LoadGameDirMods()
-        {
-            var result = new List<string>(); 
-            if (string.IsNullOrEmpty(gamedirModsPath) || !Directory.Exists(gamedirModsPath))
-            {
-                MessageBox.Show("gamedir folder not found!");
-                return result;
-            }
-            // Get all subdirectories in the mods folder
-            foreach (var folder in Directory.GetDirectories(gamedirModsPath))
-            {
-                // Get all .mod files in the current folder
-                var files = Directory.GetFiles(folder, "*.mod");
-                foreach (var file in files)
-                {
-                    result.Add(Path.GetFileName(file));
-                }
-            }
-            return result;
-        }*/
         public void SetManualSteamPath(string path)
         {
             if (!Directory.Exists(path)) throw new DirectoryNotFoundException(path);
 
             steamInstallPath = path;
             workshopModsPath = Path.Combine(steamInstallPath, "steamapps", "workshop", "content", "233860");
+            config.SteamPath = path;
+            config.Save();
         }
         public void SetManualKenshiPath(string path)
         {
@@ -133,6 +100,9 @@ namespace KenshiCore
 
             kenshiPath = path;
             gamedirModsPath = Path.Combine(kenshiPath, "mods");
+
+            config.KenshiPath = path;
+            config.Save();
 
             // If steam path was found, set workshop, otherwise leave null
             if (!string.IsNullOrEmpty(steamInstallPath))
@@ -168,18 +138,6 @@ namespace KenshiCore
                 return false;
 
             return TrySetKenshiPath(folder, out _);
-        }
-        public void LoadModFile(string modPath)
-        {
-            if (string.IsNullOrEmpty(modPath) || !File.Exists(modPath))
-            {
-                MessageBox.Show($"Mod file path invalid: {modPath}");
-                return;
-            }
-            lock (_lock)
-            {
-                _re.LoadModFile(modPath);
-            }
         }
         public void LoadAllMods()
         {

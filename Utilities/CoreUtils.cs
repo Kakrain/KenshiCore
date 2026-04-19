@@ -1,6 +1,7 @@
-﻿using System.Text;
+﻿using KenshiCore.UI;
+using System.Text;
 
-namespace KenshiCore
+namespace KenshiCore.Utilities
 {
     public static class CoreUtils
     {
@@ -79,7 +80,6 @@ namespace KenshiCore
             // Optional message box
             if (verbose > 0)
                 UiService.ShowMessage(s);
-                //MessageBox.Show(s);
 
             System.Diagnostics.Debug.WriteLine(s);
             OnPrint?.Invoke(s, verbose);
@@ -107,13 +107,13 @@ namespace KenshiCore
             var mods = SplitModList(modList);
             if (string.Join(",", mods)!.Contains(",.base"))
             {
-                MessageBox.Show($"old Dependency:{string.Join(",", modList)} \nfound weird\n {modName}");
-                MessageBox.Show($"new Dependency:{string.Join(",", mods)} \nfound weird\n {modName}");
+                UiService.ShowMessage($"old Dependency:{string.Join(",", modList)} \nfound weird\n {modName}");
+                UiService.ShowMessage($"new Dependency:{string.Join(",", mods)} \nfound weird\n {modName}");
             }
             if (!mods.Any(d => d.Equals(modName, StringComparison.Ordinal)))
                 mods.Add(modName);
             if (modName == ".base")
-                MessageBox.Show("found .base");
+                UiService.ShowMessage("found .base");
             
             return string.Join(",", mods);
         }

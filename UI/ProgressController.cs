@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace KenshiCore
+namespace KenshiCore.UI
 {
     public sealed class ProgressController
     {
