@@ -16,6 +16,15 @@ namespace KenshiCore.ReverseEngineering
         {
             modData = new ModData();
         }
+        public void InitializeEmptyMod(int fileType = 17)
+        {
+            modData.Header = new ModHeader
+            {
+                FileType = fileType,
+                ModVersion = 1,
+            };
+            modData.Records = new List<ModRecord>();
+        }
         public string modname = "";
         private readonly Dictionary<int, List<ModRecord>> _recordsByType = new();
         public int ReadInt(BinaryReader reader) => reader.ReadInt32();

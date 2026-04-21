@@ -22,8 +22,9 @@ namespace KenshiCore.Mods
 
         public bool excludeUnselectedMods = false;
 
-        public void LoadBaseGameMods(string gamedirDataPath)
+        public void LoadBaseGameMods()//string gamedirDataPath)
         {
+            string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
             _baseGameMods.Clear();
             if (!Directory.Exists(gamedirDataPath)) return;
 
@@ -33,16 +34,18 @@ namespace KenshiCore.Mods
                 _baseGameMods.Add(Path.GetFileName(file));
             
         }
-        public void LoadGameDirMods(string modsPath)
+        public void LoadGameDirMods()//string modsPath)
         {
+            string modsPath = ModManager.gamedirModsPath!;
             _gameDirMods.Clear();
             if (!Directory.Exists(modsPath)) return;
 
             foreach (var folder in Directory.GetDirectories(modsPath))
                 _gameDirMods.AddRange(Directory.GetFiles(folder, "*.mod").Select(Path.GetFileName)!);
         }
-        public void LoadWorkshopMods(string workshopPath)
+        public void LoadWorkshopMods()//string workshopPath)
         {
+            string workshopPath = ModManager.workshopModsPath!;
             _workshopMods.Clear();
             if (!Directory.Exists(workshopPath)) return;
 
@@ -52,8 +55,9 @@ namespace KenshiCore.Mods
                     .Select(f => Path.Combine(new DirectoryInfo(Path.GetDirectoryName(f)!).Name, Path.GetFileName(f))));
             }
         }
-        public void LoadSelectedMods(string cfgPath)
+        public void LoadSelectedMods()//string cfgPath)
         {
+            string cfgPath = Path.Combine(ModManager.kenshiPath!, "data", "mods.cfg");
             _selectedMods.Clear();
             if (!File.Exists(cfgPath)) return;
 

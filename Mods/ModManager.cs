@@ -139,15 +139,6 @@ namespace KenshiCore.Mods
 
             return TrySetKenshiPath(folder, out _);
         }
-        public void LoadAllMods()
-        {
-            if (string.IsNullOrEmpty(gamedirModsPath) || string.IsNullOrEmpty(workshopModsPath)) return;
-
-            ModRepository.Instance.LoadBaseGameMods(Path.Combine(kenshiPath!, "data"));
-            ModRepository.Instance.LoadGameDirMods(gamedirModsPath);
-            ModRepository.Instance.LoadWorkshopMods(workshopModsPath);
-            ModRepository.Instance.LoadSelectedMods(Path.Combine(kenshiPath!, "data", "mods.cfg"));
-        }
         public ReverseEngineer GetReverseEngineer() => _re;
     }
 

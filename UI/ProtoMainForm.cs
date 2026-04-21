@@ -1,4 +1,5 @@
 ﻿using KenshiCore.Mods;
+using KenshiCore.Utilities;
 using System;
 using System.Collections;
 using System.Diagnostics;
@@ -223,13 +224,21 @@ namespace KenshiCore.UI
         }
         protected virtual void ModsListView_SelectedIndexChanged(object? sender, EventArgs? e)
         {
-            if (modsListView.SelectedItems.Count == 0)
-                return;
             BeginInvoke((MethodInvoker)delegate
             {
                 if(shouldResetLog)
                     getLogForm().Reset();
+                var mods = getSelectedMods();
+                foreach (var mod in mods)
+                {
+                    foreach (var kvp in showActionCache)
+                    {
+                        if (kvp.Value)
+                            kvp.Key(mod);
+                    }
+                }
             });
+            //modsListView.Refresh();
         }
         private void ShowLogButton_Click(object? sender, EventArgs e)
         {
@@ -624,7 +633,7 @@ namespace KenshiCore.UI
             checkbox.CheckedChanged += (s, e) =>
             {
                 showActionCache[onToggled] = ((CheckBox)s!).Checked;
-                //ModsListView_SelectedIndexChanged(null, null);
+                ModsListView_SelectedIndexChanged(null, null);
             };
 
             buttonPanel.Controls.Add(checkbox);
