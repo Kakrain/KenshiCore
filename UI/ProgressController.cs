@@ -70,10 +70,10 @@ namespace KenshiCore.UI
                 _label = text;
         }
 
-        public void Finish()
+        public void Finish(string? text = null)
         {
             _value = _max;
-            _label = "Ready";
+            _label = text ?? "Ready";
         }
 
         private void UpdateUI()

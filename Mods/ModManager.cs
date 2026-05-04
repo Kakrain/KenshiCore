@@ -17,7 +17,7 @@ namespace KenshiCore.Mods
         private AppConfig config;
         public static ModManager Instance => _instance ??= new ModManager();
 
-        private readonly ReverseEngineer _re;
+        //private readonly ReverseEngineer _re;
         private readonly object _lock = new();
 
         private static string? steamInstallPath;
@@ -26,7 +26,7 @@ namespace KenshiCore.Mods
         public static string? workshopModsPath;
         private ModManager()
         {
-            _re = new ReverseEngineer();
+            //_re = new ReverseEngineer();
             config = AppConfig.Load();
             solvePaths();
         }
@@ -139,7 +139,7 @@ namespace KenshiCore.Mods
 
             return TrySetKenshiPath(folder, out _);
         }
-        public ReverseEngineer GetReverseEngineer() => _re;
+        //public ReverseEngineer GetReverseEngineer() => _re;
     }
 
 }

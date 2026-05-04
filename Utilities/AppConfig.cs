@@ -12,7 +12,7 @@ namespace KenshiCore.Utilities
         public string? SteamPath { get; set; }
 
         private static string ConfigPath =>
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "kenshiPatcher.json");
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "kenshiAppConfig.json");
 
         public static AppConfig Load()
         {

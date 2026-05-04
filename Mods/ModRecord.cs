@@ -612,6 +612,10 @@ namespace KenshiCore.Mods
             return ModTypeCodes.ContainsKey(this.RecordType);
 
         }
+        public static bool isTypeCode(string s)
+        {
+            return ModTypeNames.ContainsKey(s);
+        }
         public bool ValidateChangeTypeAssumptions(int fileType)
         {
             string binary = Convert.ToString(ChangeType, 2).PadLeft(32, '0');

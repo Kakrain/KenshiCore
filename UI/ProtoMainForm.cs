@@ -238,7 +238,6 @@ namespace KenshiCore.UI
                     }
                 }
             });
-            //modsListView.Refresh();
         }
         private void ShowLogButton_Click(object? sender, EventArgs e)
         {
@@ -546,6 +545,31 @@ namespace KenshiCore.UI
 
             var selector = columnDefs[colIndex].selector;
             RefreshColumn(colIndex, selector);
+        }
+        protected void RefreshRow(ModItem mod)
+        {
+            modsListView.BeginUpdate();
+            try
+            {
+                var item = modsListView.Items
+                    .Cast<ListViewItem>()
+                    .FirstOrDefault(i => i.Tag == mod);
+                if (item != null)
+                {
+                    for (int colIndex = 0; colIndex < columnDefs.Count; colIndex++)
+                    {
+                        var selector = columnDefs[colIndex].selector;
+                        var newValue = selector(mod)?.ToString() ?? "";
+                        item.SubItems[colIndex].Text = newValue;
+
+                        modsListView.Invalidate(GetColumnBounds(modsListView, colIndex));
+                    }
+                }
+            }
+            finally
+            {
+                modsListView.EndUpdate();
+            }
         }
         private Rectangle GetColumnBounds(ListView list, int colIndex)
         {

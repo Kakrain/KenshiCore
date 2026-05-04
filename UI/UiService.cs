@@ -15,11 +15,6 @@ namespace KenshiCore.UI
                 return dialog.SelectedPath;
             return null;
         }
-        /*
-        public static void ShowMessage(string text, string caption = "", MessageBoxIcon icon = MessageBoxIcon.None)
-        {
-            MessageBox.Show(text, caption, MessageBoxButtons.OK, icon);
-        }*/
         public static void ShowMessage(string message, string caption = "", MessageBoxIcon icon = MessageBoxIcon.None)
         {
             Form msg = new Form
@@ -30,7 +25,8 @@ namespace KenshiCore.UI
                 StartPosition = FormStartPosition.CenterParent,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 MaximizeBox = false,
-                MinimizeBox = false
+                MinimizeBox = false,
+                TopMost = true
             };
 
             var layout = new TableLayoutPanel
@@ -100,8 +96,8 @@ namespace KenshiCore.UI
             msg.Controls.Add(layout);
 
             ThemeManager.ApplyTheme(msg);
-
-            msg.ShowDialog();
+            msg.Show(Form.ActiveForm);
+            //msg.ShowDialog();
         }
 
         public static void OpenUrl(string url)
