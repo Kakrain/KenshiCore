@@ -75,14 +75,20 @@ namespace KenshiCore.UI
             _value = _max;
             _label = text ?? "Ready";
         }
-
         private void UpdateUI()
         {
             if (_bar == null || _labelCtrl == null)
                 return;
 
-            _bar.Maximum = _max;
-            _bar.Value = Math.Min(_value, _max);
+            int min = _bar.Minimum;
+            int max = Math.Max(min, _max);
+
+            _bar.Maximum = max;
+
+            int value = Math.Clamp(_value, min, max);
+
+            _bar.Value = value;
+
             _labelCtrl.Text = _label;
         }
     }

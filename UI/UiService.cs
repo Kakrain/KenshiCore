@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace KenshiCore.UI
 {
@@ -17,6 +16,12 @@ namespace KenshiCore.UI
         }
         public static void ShowMessage(string message, string caption = "", MessageBoxIcon icon = MessageBoxIcon.None)
         {
+            var owner = Form.ActiveForm ?? (Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null);
+            if (owner != null && owner.InvokeRequired)
+            {
+                owner.Invoke((Action)(() => ShowMessage(message, caption, icon)));
+                return;
+            }
             Form msg = new Form
             {
                 Text = string.IsNullOrEmpty(caption) ? "Message" : caption,
@@ -96,8 +101,11 @@ namespace KenshiCore.UI
             msg.Controls.Add(layout);
 
             ThemeManager.ApplyTheme(msg);
-            msg.Show(Form.ActiveForm);
-            //msg.ShowDialog();
+
+            if (owner != null)
+                msg.Show(owner);
+            else
+                msg.Show();
         }
 
         public static void OpenUrl(string url)

@@ -45,10 +45,29 @@ namespace KenshiCore.Mods
             return this.Name + " | " + this.StringId + " | " + this.getRecordType() + " | " + this.getChangeType();
 
         }
-        public Dictionary<string, int[]>? GetExtraData(string category)
+        public Dictionary<string, int[]>? GetExtraData(string? category)
         {
-            ExtraDataFields.TryGetValue(category, out var cat);
-            return cat;
+            if (category != null)
+            {
+                ExtraDataFields.TryGetValue(category, out var cat);
+                return cat;
+            }
+
+            if (ExtraDataFields.Count == 0)
+                return null;
+
+            // merge all categories
+            var merged = new Dictionary<string, int[]>();
+
+            foreach (var kvp in ExtraDataFields)
+            {
+                foreach (var entry in kvp.Value)
+                {
+                    merged[entry.Key] = entry.Value;
+                }
+            }
+
+            return merged;
         }
         public void DeleteExtraData(string category, string key)
         {
