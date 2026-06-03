@@ -23,7 +23,7 @@ namespace KenshiCore.ReverseEngineering
             {
                 "-KenshiFixer_Fix-.mod"
             };
-
+        
         public static ReverseEngineerRepository Instance
         {
             get
@@ -43,8 +43,6 @@ namespace KenshiCore.ReverseEngineering
                     maxRecords: int.MaxValue
                 );
                 _mergedByTypeAndId[recordType] = merged.ToDictionary(r => r.StringId, StringComparer.Ordinal);
-
-
             }
              return _mergedByTypeAndId[recordType];
         }
@@ -56,8 +54,7 @@ namespace KenshiCore.ReverseEngineering
         }
         // Dictionary keyed by mod name
         private readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
-
-        //private readonly List<(string name, ReverseEngineer re)> _loadOrder;
+        private readonly List<string> _loadOrder = new();
 
         private ReverseEngineerRepository() { }
 
@@ -66,8 +63,8 @@ namespace KenshiCore.ReverseEngineering
         {
             if (_ignoredModNames.Contains(modName))
                 return false; // silently ignore
-
             _reverseEngineers[modName] = re;
+            _loadOrder.Add(modName);
             return true;
         }
         public ConcurrentDictionary<string, ReverseEngineer>  getCache()
@@ -141,12 +138,22 @@ namespace KenshiCore.ReverseEngineering
         public string GetRecordEvolution(string stringId)
         {
             var sb = new StringBuilder();
+            foreach (var modName in _loadOrder)
+            {
+                if (_reverseEngineers.TryGetValue(modName, out var re))
+                {
+                    var record = re.searchModRecordByStringId(stringId);
+                    if (record != null)
+                        sb.AppendLine($"{modName} => {record}");
+                }
+            }
+            /*var sb = new StringBuilder();
             foreach (var kvp in _reverseEngineers)
             {
                 var record = kvp.Value.searchModRecordByStringId(stringId);
                 if (record != null)
                     sb.AppendLine($"{kvp.Key} => {record}");
-            }
+            }*/
             return sb.ToString();
         }
 
@@ -174,21 +181,32 @@ namespace KenshiCore.ReverseEngineering
         }
         public List<ReverseEngineer> ParseModSelector(string selector)
         {
+            //if (selector.Equals("all", StringComparison.Ordinal))
+            //return _reverseEngineers.Values.ToList();
             if (selector.Equals("all", StringComparison.Ordinal))
-                return _reverseEngineers.Values.ToList();
-
+            {
+                return _loadOrder
+                    .Where(name => _reverseEngineers.ContainsKey(name))
+                    .Select(name => _reverseEngineers[name])
+                    .ToList();
+            }
             bool isExclude = selector.StartsWith("*", StringComparison.Ordinal);
             selector = isExclude ? selector.Substring(1) : selector;
-
-            var names = CoreUtils.SplitModList(selector)
-                                 .ToHashSet(StringComparer.Ordinal);
-
+            var names = CoreUtils.SplitModList(selector).ToHashSet(StringComparer.Ordinal);
             var result = new List<ReverseEngineer>();
 
-            foreach (var kvp in _reverseEngineers)
+            /*foreach (var kvp in _reverseEngineers)
             {
                 string modName = kvp.Key;
                 ReverseEngineer re = kvp.Value;
+
+                if (names.Contains(modName) != isExclude)
+                    result.Add(re);
+            }*/
+            foreach (var modName in _loadOrder)
+            {
+                if (!_reverseEngineers.TryGetValue(modName, out var re))
+                    continue;
 
                 if (names.Contains(modName) != isExclude)
                     result.Add(re);
@@ -197,8 +215,35 @@ namespace KenshiCore.ReverseEngineering
             CoreUtils.Print($"Parsed mod selector '{selector}' to {result.Count} mods.");
             return result;
         }
+        public ModRecord? searchModRecordByStringIdGlobally(string id, bool getEarly)
+        {
+            ModRecord? result = null;
 
-        public ModRecord? searchModRecordByStringIdGlobally (string id, bool getEarly)
+            foreach (var modName in _loadOrder)
+            {
+                if (!_reverseEngineers.TryGetValue(modName, out var re))
+                    continue;
+
+                var record = re.searchModRecordByStringIdLocally(id);
+                if (record == null)
+                    continue;
+
+                if (record.isNew() && result == null)
+                {
+                    result = record.deepClone();
+
+                    if (getEarly)
+                        return result;
+                    continue;
+                }
+
+                if (result != null)
+                    result.applyChangesFrom(record);
+            }
+
+            return result;
+        }
+        /*public ModRecord? searchModRecordByStringIdGlobally (string id, bool getEarly)
         {
             ModRecord? result = null;
             foreach (var kvp in _reverseEngineers)
@@ -219,8 +264,21 @@ namespace KenshiCore.ReverseEngineering
                     result.applyChangesFrom(record);
             }
             return result;
-        }
+        }*/
+        public string? FindLastModifierMod(string id,string field)
+        {
+            foreach (var kvp in _reverseEngineers.Reverse())
+            {
+                var record =
+                    kvp.Value.searchModRecordByStringIdLocally(id);
+                if (record == null)
+                    continue;
+                if (record.isFieldChanged(field,"filename"))
+                    return kvp.Value.modname;
+            }
 
+            return null;
+        }
         public void LoadFromMods(Dictionary<string, ModItem> mods, Func<ModItem, string?> pathSelector)
         {
             busy = true;
@@ -228,7 +286,6 @@ namespace KenshiCore.ReverseEngineering
             ProgressController progress = ProgressController.Instance;
             progress.Initialize(mods.Count);
             int i = 0;
-
             foreach (var kv in mods)
             {
                 string? path = pathSelector(kv.Value);
@@ -237,7 +294,6 @@ namespace KenshiCore.ReverseEngineering
 
                 var re = new ReverseEngineer();
                 re.LoadModFile(path);
-
                 AddOrUpdate(kv.Key, re);
 
                 i++;

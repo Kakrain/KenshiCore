@@ -7,29 +7,29 @@ namespace KenshiCore.Utilities
     {
         //private static CoreUtils? _instance;
         private static readonly object _lock = new object();
-
+        private static HashSet<int> shushed = new HashSet<int>();
         private static StreamWriter? _logWriter;
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
+        
+        private static int unique_id=0;
 
-        public static event Action<string, int>? OnPrint;
-
-        /*private CoreUtils() { }
-
-        public static CoreUtils Instance
+        public static int getUniqueId()
         {
-            get
+            lock (_lock)
             {
-                lock (_lock)
-                {
-                    if (_instance == null)
-                    {
-                        _instance = new CoreUtils();
-                    }
-                    return _instance;
-                }
+                return unique_id++;
             }
-        }*/
+        }   
+        public static event Action<string, int>? OnPrint;
+        public static void Shush(int id)
+        {
+            shushed.Add(id);
+        }
+        public static void Unshush(int id)
+        {
+            shushed.Remove(id);
+        }
         public static void CopyDirectory(string sourceDir, string targetDir)
         {
             Directory.CreateDirectory(targetDir);
@@ -75,14 +75,23 @@ namespace KenshiCore.Utilities
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
         }
-        public static void Print(string s, int verbose = 0)
+        public static void Print(string s, int id = -1)
         {
-            // Optional message box
-            if (verbose > 0)
-                UiService.ShowMessage(s);
-
+            if (shushed.Contains(id))
+                return;
             System.Diagnostics.Debug.WriteLine(s);
-            OnPrint?.Invoke(s, verbose);
+            OnPrint?.Invoke(s, id);
+
+            if (_logEnabled)
+                WriteDirect($"[{DateTime.Now:HH:mm:ss}] {s}");
+        }
+        public static void Prompt(string s, int id = -1)
+        {
+            if(shushed.Contains(id))
+                return;
+
+            UiService.ShowMessage(s);
+            OnPrint?.Invoke(s, id);
 
             if (_logEnabled)
                 WriteDirect($"[{DateTime.Now:HH:mm:ss}] {s}");

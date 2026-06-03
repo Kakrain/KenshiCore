@@ -1,4 +1,6 @@
-﻿using System;
+﻿using KenshiCore.ReverseEngineering;
+using KenshiCore.Utilities;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -15,13 +17,13 @@ namespace KenshiCore.Mods
         private readonly List<string> _gameDirMods = new();
         private readonly List<string> _workshopMods = new();
         private readonly List<string> _selectedMods = new();
+        private Dictionary<string, string> AssetCache = new();
         public IReadOnlyList<string> BaseGameMods => _baseGameMods;
         public IReadOnlyList<string> GameDirMods => _gameDirMods;
         public IReadOnlyList<string> WorkshopMods => _workshopMods;
         public IReadOnlyList<string> SelectedMods => _selectedMods;
 
         public bool excludeUnselectedMods = false;
-
         public void LoadBaseGameMods()//string gamedirDataPath)
         {
             string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
@@ -34,6 +36,7 @@ namespace KenshiCore.Mods
                 _baseGameMods.Add(Path.GetFileName(file));
             
         }
+        
         public void LoadGameDirMods()//string modsPath)
         {
             string modsPath = ModManager.gamedirModsPath!;
@@ -116,6 +119,7 @@ namespace KenshiCore.Mods
                 foreach (var key in unselectedKeys)
                     merged.Remove(key);
             }
+            Mods = merged;
             return merged;
         }
         public Dictionary<string, ModItem> FilterSelectedMods(Dictionary<string, ModItem> mods)
@@ -126,7 +130,77 @@ namespace KenshiCore.Mods
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         }
         public Dictionary<string, ModItem> Mods { get; private set; } = new();
-        
+
+
+        public string? getRealPathFromAsset(string assetname)
+        {
+            if (AssetCache.TryGetValue(assetname, out var cached))
+                return cached;
+
+
+            foreach (var last_mod in Mods.Values.Reverse())
+            {
+                string? modpath= Path.GetDirectoryName(last_mod.getModFilePath());
+                if(modpath != null&&last_mod.Selected)
+                {
+                    var files = Directory.GetFiles(modpath, assetname, SearchOption.AllDirectories);
+                    if (files.Length > 0)
+                    {
+                        AssetCache[assetname] = files[0];
+                        return files[0];
+                    }
+                }
+            }
+            return null;
+
+        }
+        public string ResolveRealPath(string virtualPath)
+        {
+            const string ISNULL = "E_ISNULL";
+            const string NOTFOUND = "E_NOTFOUND";
+
+            if (string.IsNullOrWhiteSpace(virtualPath))
+                return ISNULL;
+
+            string normalized = virtualPath.Replace('\\', '/');
+
+            // BASE GAME FILE
+            // ./data/animal/meshes/dog.mesh
+            
+            string? file = Path.GetFileName(virtualPath);
+            if (file != null)
+            {
+                string? result = getRealPathFromAsset(file);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return NOTFOUND;
+        }
+
+        public string ResolvePathRelativeToMod(ModItem mod,string virtualPath)
+        {
+            string[] parts = virtualPath.Split('/',StringSplitOptions.RemoveEmptyEntries);
+            string relativePath = Path.Combine(parts.Skip(3).ToArray());
+            // Workshop mod
+            if (mod.WorkshopId != -1&&!mod.InGameDir)
+            {
+                return Path.GetFullPath(
+                    Path.Combine(
+                        ModManager.workshopModsPath!,
+                        mod.WorkshopId.ToString(),
+                        relativePath
+                    ));
+            }
+            // Local mod
+            return Path.GetFullPath(
+                Path.Combine(
+                    ModManager.gamedirModsPath!,
+                    Path.GetFileNameWithoutExtension(mod.Name),
+                    relativePath
+                ));
+        }
 
     }
 }

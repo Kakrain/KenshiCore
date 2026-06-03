@@ -68,8 +68,18 @@ namespace KenshiCore.UI
 
                 layout.Controls.Add(picture, 0, 0);
             }
+            var textBox = new TextBox
+            {
+                Text = message.Replace("\n", Environment.NewLine),
+                Multiline = true,
+                ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical,
+                BorderStyle = BorderStyle.None,
+                Dock = DockStyle.Fill
+            };
 
-            var label = new Label
+            layout.Controls.Add(textBox, 1, 0);
+            /*var label = new Label
             {
                 Text = message,
                 Dock = DockStyle.Fill,
@@ -77,7 +87,7 @@ namespace KenshiCore.UI
             };
 
             layout.Controls.Add(label, 1, 0);
-
+            */
             var ok = new Button
             {
                 Text = "OK",
@@ -99,7 +109,8 @@ namespace KenshiCore.UI
             layout.SetColumnSpan(buttonPanel, 2);
 
             msg.Controls.Add(layout);
-
+            msg.MinimumSize = new Size(420, 180);
+            msg.MaximumSize = new Size(1200, 800);
             ThemeManager.ApplyTheme(msg);
 
             if (owner != null)

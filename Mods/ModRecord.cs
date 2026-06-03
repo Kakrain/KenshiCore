@@ -118,6 +118,44 @@ namespace KenshiCore.Mods
             }
             return false;
         }
+        public void DeleteField(string field)
+        {
+            if (this.BoolFields.ContainsKey(field))
+            {
+                this.BoolFields.Remove(field);
+                return;
+            }
+            else if (this.FloatFields.ContainsKey(field))
+            {
+                this.FloatFields.Remove(field);
+                return;
+            }
+            else if (this.LongFields.ContainsKey(field))
+            {
+                this.LongFields.Remove(field);
+                return;
+            }
+            else if (this.StringFields.ContainsKey(field))
+            {
+                this.StringFields.Remove(field);
+                return;
+            }
+            else if (this.FilenameFields.ContainsKey(field))
+            {
+                this.FilenameFields.Remove(field);
+                return;
+            }
+            else if (this.Vec3Fields.ContainsKey(field))
+            {
+                this.Vec3Fields.Remove(field);
+                return;
+            }
+            else if (this.Vec4Fields.ContainsKey(field))
+            {
+                this.Vec4Fields.Remove(field);
+                return;
+            }
+        }
         public void ForceEnsureFieldExist(string field, string type)
         {
             switch (type)
@@ -353,6 +391,45 @@ namespace KenshiCore.Mods
             getChangedSpecificFields(this.ExtraDataFields, "extradata");
 
             return changed;
+        }
+        public bool isFieldChanged(string field,string? type=null)
+        {
+            if (type == "bool")
+            {
+                return this.BoolFields.ContainsKey(field);
+            }
+            if (type == "float")
+            {
+                return this.FloatFields.ContainsKey(field);
+            }
+            if (type == "long")
+            {
+                return this.LongFields.ContainsKey(field);
+            }
+            if (type == "vec3")
+            {
+                return this.Vec3Fields.ContainsKey(field);
+            }
+            if (type == "vec4")
+            {
+                return this.Vec4Fields.ContainsKey(field);
+            }
+            if (type == "string")
+            {
+                return this.StringFields.ContainsKey(field);
+            }
+            if (type == "filename")
+            {
+                return this.FilenameFields.ContainsKey(field);
+            }
+            if (type == null)
+            {
+                return isFieldChanged(field,"bool")|| isFieldChanged(field,"float")|| isFieldChanged(field,"long")
+                    || isFieldChanged(field, "vec3") || isFieldChanged(field, "vec4") || isFieldChanged(field, "string")
+                    || isFieldChanged(field, "filename");
+            }
+            throw new ArgumentException($"Unknown field type: {type} available types are: bool,float,long,vec3,vec4,string and filename");
+
         }
         public static readonly Dictionary<int, string> ModTypeCodes = new Dictionary<int, string>
         {
@@ -608,23 +685,27 @@ namespace KenshiCore.Mods
             // Convert back to int
             ChangeType = Convert.ToInt32(new string(binary), 2);
         }
-        public string GetModName()
+        public static string GetModNameFromId(string stringId)
         {
-            if (string.IsNullOrEmpty(StringId))
+            if (string.IsNullOrEmpty(stringId))
                 return string.Empty;
 
             // Expected format: "number-modname.mod"
-            int dashIndex = StringId.IndexOf('-');
-            if (dashIndex == -1 || dashIndex >= StringId.Length - 1)
+            int dashIndex = stringId.IndexOf('-');
+            if (dashIndex == -1 || dashIndex >= stringId.Length - 1)
                 return string.Empty;
 
-            string modPart = StringId.Substring(dashIndex + 1);
+            string modPart = stringId.Substring(dashIndex + 1);
 
             // Ensure it ends with ".mod"
             if (modPart.EndsWith(".mod", StringComparison.Ordinal))
                 return modPart;
 
             return string.Empty;
+        }
+        public string GetModName()
+        {
+            return GetModNameFromId(this.StringId);
         }
         public bool ValidateDataTypeAssumptions()
         {
@@ -758,11 +839,6 @@ namespace KenshiCore.Mods
         {
             return this.StringId;
         }
-        //TODO
-        /*public bool isPathBroken(string basePath)
-        {
-
-        }*/
         public string? GetFieldAsString(string field)
         {
             additionalGetters.TryGetValue(field, out var fieldfunc);

@@ -226,8 +226,9 @@ namespace KenshiCore.UI
         {
             BeginInvoke((MethodInvoker)delegate
             {
-                if(shouldResetLog)
-                    getLogForm().Reset();
+                //if(shouldResetLog)
+                //    getLogForm().Reset();
+                getLogForm().Reset();
                 var mods = getSelectedMods();
                 foreach (var mod in mods)
                 {

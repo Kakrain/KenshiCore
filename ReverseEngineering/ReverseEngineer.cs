@@ -98,8 +98,8 @@ namespace KenshiCore.ReverseEngineering
         }
         public void LoadModFile(string path)
         {
-            try
-            {
+            //try
+            //{
                 modData = new ModData();
                 using var fs = File.OpenRead(path);//Zombie Land
                 using var reader = new BinaryReader(fs, Encoding.UTF8);
@@ -138,12 +138,11 @@ namespace KenshiCore.ReverseEngineering
                     modData.Leftover = reader.ReadBytes((int)leftover);
                     Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
                 }
-            }
+            /*}
             catch (Exception ex)
             {
-                Console.WriteLine($"⚠ Failed to load mod file '{path}': {ex.Message}");
-                // Optionally: rethrow or mark mod as invalid
-            }
+                CoreUtils.Print($"⚠ Failed to load mod file '{path}': {ex.Message}", 0);
+            }*/
         }
         public static int readJustVersion(string path)
         {
@@ -379,6 +378,22 @@ namespace KenshiCore.ReverseEngineering
             }
             return blocks;
         }
+        public string GetRecordNamesAsString(string? recordTypeFilter = null, List<string>? fieldFilter = null)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (modData.Records != null)
+            {
+                foreach (var rec in modData.Records)
+                {
+                    if (recordTypeFilter != null &&
+                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+                        continue;
+                    sb.AppendLine($"--- RECORD: {rec.Name} ({rec.getRecordType()}) ---");
+                    sb.AppendLine($"ID: {rec.Id}, StringID: {rec.StringId}, ChangeType: {rec.getChangeType()}");
+                }
+            }
+            return sb.ToString();
+        }
         public string GetRecordsAsString(string? recordTypeFilter = null, List<string>? fieldFilter = null)
         {
             StringBuilder sb = new StringBuilder();
@@ -583,7 +598,9 @@ namespace KenshiCore.ReverseEngineering
                     header.RecordCount = ReadInt(reader);
                     break;
                 default:
-                    throw new Exception($"Unexpected filetype: {header.FileType}");
+                    throw new UnsupportedModFileException(header.FileType);
+                    //default:
+                    //throw new Exception($"Unexpected filetype: {header.FileType}");
             }
             return header;
         }
@@ -865,6 +882,11 @@ namespace KenshiCore.ReverseEngineering
             ownedtarget.EnsureFieldExist(target, fieldname);
             ownedtarget.SetField(fieldname, value);
         }
+        public void DeleteField(ModRecord target, string fieldname)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            ownedtarget.DeleteField(fieldname);
+        }
         public void ForceSetField(ModRecord target, string fieldname, string value, string valuetype)
         {
             ModRecord? ownedtarget = EnsureRecordExists(target);
@@ -890,6 +912,50 @@ namespace KenshiCore.ReverseEngineering
                 vars = new int[] { 0, 0, 0 };
             cat[source.StringId] = vars;
         }
+        public void AddExtraDataString(ModRecord target, string idsource, string category, int[]? vars = null, bool force = false)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            if (ownedtarget.ExtraDataFields == null)
+                ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
+            ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
+            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
+            if (!force && ExtraDataExists(cat, target_cat, idsource))
+                return;
+            if (cat == null)
+            {
+                cat = new Dictionary<string, int[]>();
+                ownedtarget.ExtraDataFields.Add(category, cat);
+            }
+            if (vars == null)
+                vars = new int[] { 0, 0, 0 };
+            cat[idsource] = vars;
+        }
+        public void RemoveExtraData(ModRecord target, ModRecord source, string category)
+        {
+            ModRecord? ownedtarget = EnsureRecordExists(target);
+            if (ownedtarget.ExtraDataFields == null)
+                ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
+            ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
+            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
+            if(cat != null)
+            {
+                if (cat.ContainsKey(source.StringId))
+                {
+                    cat.Remove(source.StringId);
+                }
+            }
+            if (ExtraDataExists(cat, target_cat, source.StringId))
+            {
+                if (cat == null) { 
+                    cat = new Dictionary<string, int[]>();
+                }
+                cat[source.StringId] = new int[] { DELETED, DELETED, DELETED };
+                return;
+            }
+        }
+        
+
+
         private static bool ExtraDataExists(
             Dictionary<string, int[]>? patchCat, Dictionary<string, int[]>? baseCat, string key)
         {
@@ -901,6 +967,23 @@ namespace KenshiCore.ReverseEngineering
 
             return false;
         }
+        public void deleteRecordFromPatch(ModRecord record)
+        {
+            var owned = searchModRecordByStringId(record.StringId);
+            if (owned != null)
+            {
+                modData.Records!.Remove(owned);
+            }
+        }
+        public void deleteEmptyRecordFromPatch(ModRecord record)
+        {
+            var owned = searchModRecordByStringId(record.StringId);
+            if (owned != null&&owned.GetRecordCompleteness()==0)
+            {
+                modData.Records!.Remove(owned);
+            }
+        }
+        
         public void deleteRecord(ModRecord record)
         {
             var owned = searchModRecordByStringId(record.StringId);
