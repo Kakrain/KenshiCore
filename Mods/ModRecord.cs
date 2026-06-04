@@ -319,6 +319,59 @@ namespace KenshiCore.Mods
                 }
             }
         }
+        public Dictionary<string, bool> GetFilenameFieldSnapshot()
+        {
+            var snapshot = new Dictionary<string, bool>(StringComparer.Ordinal);
+
+            foreach (var kv in FilenameFields)
+            {
+                snapshot[kv.Key] = !string.IsNullOrEmpty(kv.Value);
+            }
+
+            return snapshot;
+        }
+        public bool applyChangesCarefully(ModRecord other)
+        {
+            bool dirty = false;
+            foreach (var kv in other.BoolFields)
+                this.BoolFields[kv.Key] = kv.Value;
+            foreach (var kv in other.FloatFields)
+                this.FloatFields[kv.Key] = kv.Value;
+            foreach (var kv in other.LongFields)
+                this.LongFields[kv.Key] = kv.Value;
+            foreach (var kv in other.Vec3Fields)
+                this.Vec3Fields[kv.Key] = (float[])kv.Value.Clone();
+            foreach (var kv in other.Vec4Fields)
+                this.Vec4Fields[kv.Key] = (float[])kv.Value.Clone();
+            foreach (var kv in other.StringFields) {
+                if (!string.IsNullOrEmpty(kv.Value)) 
+                    this.StringFields[kv.Key] = kv.Value;
+            }
+            foreach (var kv in other.FilenameFields)
+                if (string.IsNullOrEmpty(kv.Value))
+                {
+                    if (this.StringFields.TryGetValue(kv.Key, out string? oldValue) &&
+                        !string.IsNullOrEmpty(oldValue))
+                    {
+                        dirty = true;
+                    }
+                }
+                else
+                {
+                    this.StringFields[kv.Key] = kv.Value;
+                }
+            foreach (var kv in other.ExtraDataFields)
+            {
+                if (!this.ExtraDataFields.ContainsKey(kv.Key))
+                    this.ExtraDataFields[kv.Key] = new Dictionary<string, int[]>();
+
+                foreach (var itemKv in kv.Value)
+                {
+                    this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
+                }
+            }
+            return dirty;
+        }
         private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields, string name)
         {
             if (fields == null)

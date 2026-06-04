@@ -38,15 +38,22 @@ namespace KenshiCore.ReverseEngineering
             byte[] bytes = reader.ReadBytes(length);
             return Encoding.UTF8.GetString(bytes);
         }
-        public List<string> GetModsNewRecords()
+        public List<string> GetStringIdsNewRecords()
         {
             if (modData?.Records == null)
                 return new List<string>();
             return modData.Records
                 .Where(r => r.isNew())
-                .Select(r => r.GetModName())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.Ordinal)
+                .Select(r => r.getStringId())
+                .ToList();
+        }
+        public List<string> GetStringIdsOldRecords()
+        {
+            if (modData?.Records == null)
+                return new List<string>();
+            return modData.Records
+                .Where(r => !r.isNew())
+                .Select(r => r.getStringId())
                 .ToList();
         }
         public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
@@ -875,6 +882,17 @@ namespace KenshiCore.ReverseEngineering
             }
             return ownedtarget;
         }
+        public void AddRecordAsExisting(ModRecord target)
+        {
+            ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
+            if (ownedtarget != null)
+            {
+                this.modData.Records!.Remove(ownedtarget);
+            }
+            target.ChangeType = 0;
+            target.SetRecordStatus(this.modData.Header!.FileType, "existing");
+            this.modData.Records!.Add(target);
+        }
 
         public void SetField(ModRecord target, string fieldname, string value)
         {
@@ -1011,7 +1029,6 @@ namespace KenshiCore.ReverseEngineering
             target.ExtraDataFields!.TryGetValue(category, out var target_cat);
             if (target_cat == null)
             {
-                //
                 this.modData.Records!.Remove(ownedtarget);
                 return;
             }
@@ -1040,7 +1057,6 @@ namespace KenshiCore.ReverseEngineering
             }
             if (!changed && !exist_at_beginning)
             {
-                //CoreUtils.Print($"Removing empty record {ownedtarget.StringId}", 1);
                 this.modData.Records!.Remove(ownedtarget);
             }
         }
@@ -1055,7 +1071,6 @@ namespace KenshiCore.ReverseEngineering
             {
                 ModRecord clone = toclone.deepClone();
                 clone.StringId = $"{GetNextFreeStringIdNumber()}-{this.modname}";
-                //clone.Name = $"{toclone.Name}_{i}";
                 clone.ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17;
                 this.modData.Records!.Add(clone);
                 clones.Add(clone);

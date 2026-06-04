@@ -24,6 +24,11 @@ namespace KenshiCore.Mods
         public IReadOnlyList<string> SelectedMods => _selectedMods;
 
         public bool excludeUnselectedMods = false;
+        public void SetSelectedMods(List<string> mods)
+        {
+            _selectedMods.Clear();
+            _selectedMods.AddRange(mods);
+        }
         public void LoadBaseGameMods()//string gamedirDataPath)
         {
             string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
@@ -130,8 +135,6 @@ namespace KenshiCore.Mods
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         }
         public Dictionary<string, ModItem> Mods { get; private set; } = new();
-
-
         public string? getRealPathFromAsset(string assetname)
         {
             if (AssetCache.TryGetValue(assetname, out var cached))
@@ -178,29 +181,5 @@ namespace KenshiCore.Mods
             }
             return NOTFOUND;
         }
-
-        public string ResolvePathRelativeToMod(ModItem mod,string virtualPath)
-        {
-            string[] parts = virtualPath.Split('/',StringSplitOptions.RemoveEmptyEntries);
-            string relativePath = Path.Combine(parts.Skip(3).ToArray());
-            // Workshop mod
-            if (mod.WorkshopId != -1&&!mod.InGameDir)
-            {
-                return Path.GetFullPath(
-                    Path.Combine(
-                        ModManager.workshopModsPath!,
-                        mod.WorkshopId.ToString(),
-                        relativePath
-                    ));
-            }
-            // Local mod
-            return Path.GetFullPath(
-                Path.Combine(
-                    ModManager.gamedirModsPath!,
-                    Path.GetFileNameWithoutExtension(mod.Name),
-                    relativePath
-                ));
-        }
-
     }
 }

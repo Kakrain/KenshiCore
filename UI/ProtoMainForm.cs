@@ -589,7 +589,8 @@ namespace KenshiCore.UI
             var item = new ListViewItem(new[] { columnDefs[0].selector(mod)?.ToString() ?? "" })
             {
                 Tag = mod,
-                ImageKey = mod.Name
+                ImageKey = mod.Name,
+                BackColor = GetModColor(mod)
             };
 
             for (int i = 1; i < columnDefs.Count; i++)
@@ -677,6 +678,10 @@ namespace KenshiCore.UI
             if (item != null)
                 item.ImageKey = mod.Name;
         }
+        protected virtual Color GetModColor(ModItem mod)
+        {
+            return Color.White;
+        }
         protected virtual void PopulateModsListView()
         {
             modsListView.Items.Clear();
@@ -692,7 +697,8 @@ namespace KenshiCore.UI
                 var item = new ListViewItem(new[] { columnDefs[0].selector(mod)?.ToString() ?? "" })
                 {
                     Tag = mod,
-                    ImageKey = mod.Name
+                    ImageKey = mod.Name,
+                    BackColor = GetModColor(mod)
                 };
 
                 for (int i = 1; i < columnDefs.Count; i++)

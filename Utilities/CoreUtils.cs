@@ -1,4 +1,5 @@
-﻿using KenshiCore.UI;
+﻿using KenshiCore.Mods;
+using KenshiCore.UI;
 using System.Text;
 
 namespace KenshiCore.Utilities
@@ -11,25 +12,56 @@ namespace KenshiCore.Utilities
         private static StreamWriter? _logWriter;
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
-        
-        private static int unique_id=0;
+        public static Dictionary<string,bool> toggles { get; } = new Dictionary<string, bool>();
 
-        public static int getUniqueId()
+        public static bool isModPatched(ModItem mod)
         {
-            lock (_lock)
-            {
-                return unique_id++;
-            }
-        }   
+            string modpath = mod.getModFilePath()!;
+            string dir = Path.GetDirectoryName(modpath)!;
+            string modName = Path.GetFileNameWithoutExtension(modpath);
+            string patchPath = Path.Combine(dir, modName + ".patch");
+            string unpatchedPath = Path.Combine(dir, modName + ".unpatched");
+            if (!File.Exists(patchPath))
+                return false;
+            return File.Exists(unpatchedPath);
+        }
+        public static bool isModAPatch(ModItem mod)
+        {
+            string modpath = mod.getModFilePath()!;
+            string dir = Path.GetDirectoryName(modpath)!;
+            string modName = Path.GetFileNameWithoutExtension(modpath);
+            string patchPath = Path.Combine(dir, modName + ".patch");
+
+            return File.Exists(patchPath);
+        }
+        public static bool isReKenshiMod(ModItem mod)
+        {
+            string modPath = mod.getModFilePath()!;
+            string dir = Path.GetDirectoryName(modPath)!;
+
+            return File.Exists(Path.Combine(dir, "RE_Kenshi.json"));
+        }
+        public static string getUnpatchedPath(ModItem mod)
+        {
+            string modpath = mod.getModFilePath()!;
+            string dir = Path.GetDirectoryName(modpath)!;
+            string modName = Path.GetFileNameWithoutExtension(modpath);
+            string unpatchedPath = Path.Combine(dir, modName + ".unpatched");
+            return unpatchedPath;
+        }
+        public static string? GetRealModPath(ModItem mod)
+        {
+            if (string.IsNullOrEmpty(mod.getModFilePath()))
+                return null;
+
+            if (isModPatched(mod))
+                return getUnpatchedPath(mod);
+
+            return mod.getModFilePath();
+        }
+
         public static event Action<string, int>? OnPrint;
-        public static void Shush(int id)
-        {
-            shushed.Add(id);
-        }
-        public static void Unshush(int id)
-        {
-            shushed.Remove(id);
-        }
+
         public static void CopyDirectory(string sourceDir, string targetDir)
         {
             Directory.CreateDirectory(targetDir);

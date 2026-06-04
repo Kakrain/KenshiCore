@@ -21,7 +21,8 @@ namespace KenshiCore.ReverseEngineering
         private static readonly HashSet<string> _ignoredModNames =
             new HashSet<string>(StringComparer.Ordinal)
             {
-                "-KenshiFixer_Fix-.mod"
+                "-KenshiFixer_Fix-.mod",
+                //"-KenshiFixer_Bridge-.mod"
             };
         
         public static ReverseEngineerRepository Instance
@@ -46,6 +47,67 @@ namespace KenshiCore.ReverseEngineering
             }
              return _mergedByTypeAndId[recordType];
         }
+        public List<string> GetAllSuspiciousStringIds()
+        {
+            Dictionary<string, Dictionary<string, bool>> SnapshotsDictionary=new();
+            HashSet<string> suspiciousStringIds = new();
+            ProgressController progress = ProgressController.Instance;
+            progress.Initialize(_loadOrder.Count);
+            int i = 0;
+            foreach (var modName in _loadOrder.AsEnumerable().Reverse())
+            {
+                if (_reverseEngineers.TryGetValue(modName, out var re))
+                {
+                    foreach (ModRecord record in re.modData.Records!)
+                    {
+                        if (suspiciousStringIds.Contains(record.StringId))
+                        {
+                            continue;
+                        }
+                        Dictionary<string, bool> snapshot = record.GetFilenameFieldSnapshot();
+                        if (SnapshotsDictionary.TryGetValue(record.StringId, out var new_snapshot))
+                        {
+                            foreach (var kv in snapshot)
+                            {
+                                if (new_snapshot.ContainsKey(kv.Key) && !new_snapshot[kv.Key] && kv.Value)
+                                {
+                                    suspiciousStringIds.Add(record.StringId);
+                                    break;
+                                }
+                            }
+                            foreach (var kv in new_snapshot)
+                            {
+                                snapshot[kv.Key] = snapshot.TryGetValue(kv.Key, out bool v)? v: kv.Value;
+                            }
+                            SnapshotsDictionary[record.StringId] =new Dictionary<string, bool>(snapshot);
+                        }
+                        else
+                        {
+                            SnapshotsDictionary[record.StringId] = snapshot;
+                        }
+                    }
+                }
+                progress.Report(i, $"Checking mod {i} for suspicious records");
+                i++;
+            }
+            progress.Finish("Finished checking for suspicious records");
+            return suspiciousStringIds.ToList();
+        }
+        /*public List<string> GetAllStringIds()
+        {
+            var stringIds = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var modName in _loadOrder)
+            {
+                if (_reverseEngineers.TryGetValue(modName, out var re))
+                {
+                    foreach (string stringid in re.GetStringIdsNewRecords())
+                    {
+                        stringIds.Add(stringid);
+                    }
+                }
+            }
+            return stringIds.ToList();
+        }*/
 
         public bool HasMergedRecord(string recordType, string stringId)
         {
@@ -66,6 +128,12 @@ namespace KenshiCore.ReverseEngineering
             _reverseEngineers[modName] = re;
             _loadOrder.Add(modName);
             return true;
+        }
+        public ReverseEngineer? GetReverseEngineer(string modName)
+        {
+            if (_reverseEngineers.TryGetValue(modName, out var re))
+                return re;
+            return null;
         }
         public ConcurrentDictionary<string, ReverseEngineer>  getCache()
         {
@@ -94,12 +162,17 @@ namespace KenshiCore.ReverseEngineering
 
             // Collect all records
             var collected = new List<(ModRecord record, string sourceModName)>();
-            foreach (var re in selected)
+            foreach (var modName in _loadOrder)
             {
-                foreach (var record in re.GetRecordsByTypeINMUTABLE(recordType))
-                    collected.Add((record, re.modname));
-            }
+                if (!_reverseEngineers.TryGetValue(modName, out var re))
+                    continue;
 
+                if (modNames != null && !modNames.Contains(modName))
+                    continue;
+
+                foreach (var record in re.GetRecordsByTypeINMUTABLE(recordType))
+                    collected.Add((record, modName));
+            }
             // Merge duplicates preferring "new" records
             var mergedNames = new List<string>();
             var mergedRecords = new List<ModRecord>();
@@ -147,13 +220,6 @@ namespace KenshiCore.ReverseEngineering
                         sb.AppendLine($"{modName} => {record}");
                 }
             }
-            /*var sb = new StringBuilder();
-            foreach (var kvp in _reverseEngineers)
-            {
-                var record = kvp.Value.searchModRecordByStringId(stringId);
-                if (record != null)
-                    sb.AppendLine($"{kvp.Key} => {record}");
-            }*/
             return sb.ToString();
         }
 
@@ -162,8 +228,9 @@ namespace KenshiCore.ReverseEngineering
         {
             _reverseEngineers.Clear();
             _mergedByTypeAndId.Clear();
+            _loadOrder.Clear();
         }
-        public List<string> GetAssumedRequiredRecords()
+        /*public List<string> GetAssumedRequiredRecords()
         {
             List<string> baseMods = new List<string> { "gamedata.base", "rebirth.mod", "Newwworld.mod", "Dialogue.mod" };
             var assumedReqs = new List<string>();
@@ -178,11 +245,9 @@ namespace KenshiCore.ReverseEngineering
 
             // Deduplicate (case-sensitive)
             return assumedReqs.Distinct(StringComparer.Ordinal).ToList();
-        }
+        }*/
         public List<ReverseEngineer> ParseModSelector(string selector)
         {
-            //if (selector.Equals("all", StringComparison.Ordinal))
-            //return _reverseEngineers.Values.ToList();
             if (selector.Equals("all", StringComparison.Ordinal))
             {
                 return _loadOrder
@@ -195,14 +260,6 @@ namespace KenshiCore.ReverseEngineering
             var names = CoreUtils.SplitModList(selector).ToHashSet(StringComparer.Ordinal);
             var result = new List<ReverseEngineer>();
 
-            /*foreach (var kvp in _reverseEngineers)
-            {
-                string modName = kvp.Key;
-                ReverseEngineer re = kvp.Value;
-
-                if (names.Contains(modName) != isExclude)
-                    result.Add(re);
-            }*/
             foreach (var modName in _loadOrder)
             {
                 if (!_reverseEngineers.TryGetValue(modName, out var re))
@@ -243,28 +300,38 @@ namespace KenshiCore.ReverseEngineering
 
             return result;
         }
-        /*public ModRecord? searchModRecordByStringIdGlobally (string id, bool getEarly)
+        public ModRecord? getModRecordIfDirty(string id)
         {
             ModRecord? result = null;
-            foreach (var kvp in _reverseEngineers)
+            bool dirty = false;
+            foreach (var modName in _loadOrder)
             {
-                var record = kvp.Value.searchModRecordByStringIdLocally(id);
-                if (record != null && record.isNew())
+                if (!_reverseEngineers.TryGetValue(modName, out var re))
+                    continue;
+
+                var record = re.searchModRecordByStringIdLocally(id);
+                if (record == null)
+                    continue;
+
+                if (record.isNew() && result == null)
                 {
                     result = record.deepClone();
-                    break;
+                    continue;
+                }
+
+                if (result != null)
+                {
+                    dirty = result.applyChangesCarefully(record);
+                    if (dirty)
+                    {
+                        CoreUtils.Print($"Dirty Record {id} modified by {modName}");
+                    }
                 }
             }
-            if (result == null || getEarly)
-                return result;
-            foreach (var kvp in _reverseEngineers)
-            {
-                var record = kvp.Value.searchModRecordByStringIdLocally(id);
-                if (record != null && !record.isNew())
-                    result.applyChangesFrom(record);
-            }
-            return result;
-        }*/
+
+            return dirty?result:null;
+        }
+
         public string? FindLastModifierMod(string id,string field)
         {
             foreach (var kvp in _reverseEngineers.Reverse())
