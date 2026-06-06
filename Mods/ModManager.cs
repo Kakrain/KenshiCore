@@ -139,7 +139,6 @@ namespace KenshiCore.Mods
 
             return TrySetKenshiPath(folder, out _);
         }
-        //public ReverseEngineer GetReverseEngineer() => _re;
     }
 
 }

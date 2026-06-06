@@ -330,9 +330,8 @@ namespace KenshiCore.Mods
 
             return snapshot;
         }
-        public bool applyChangesCarefully(ModRecord other)
+        public void applyChangesCarefully(ModRecord other)
         {
-            bool dirty = false;
             foreach (var kv in other.BoolFields)
                 this.BoolFields[kv.Key] = kv.Value;
             foreach (var kv in other.FloatFields)
@@ -347,19 +346,12 @@ namespace KenshiCore.Mods
                 if (!string.IsNullOrEmpty(kv.Value)) 
                     this.StringFields[kv.Key] = kv.Value;
             }
-            foreach (var kv in other.FilenameFields)
-                if (string.IsNullOrEmpty(kv.Value))
+            foreach (var kv in other.FilenameFields) { 
+                if (!string.IsNullOrEmpty(kv.Value)||!this.FilenameFields.ContainsKey(kv.Key))
                 {
-                    if (this.StringFields.TryGetValue(kv.Key, out string? oldValue) &&
-                        !string.IsNullOrEmpty(oldValue))
-                    {
-                        dirty = true;
-                    }
+                    this.FilenameFields[kv.Key] = kv.Value;
                 }
-                else
-                {
-                    this.StringFields[kv.Key] = kv.Value;
-                }
+            }
             foreach (var kv in other.ExtraDataFields)
             {
                 if (!this.ExtraDataFields.ContainsKey(kv.Key))
@@ -370,7 +362,6 @@ namespace KenshiCore.Mods
                     this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
                 }
             }
-            return dirty;
         }
         private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields, string name)
         {
@@ -667,6 +658,10 @@ namespace KenshiCore.Mods
                 result += " REMOVED";
 
             return result;
+        }
+        public bool isRemoved()
+        {
+            return this.BoolFields.TryGetValue("REMOVED", out var value) && value;
         }
         public void SetChangeCounter(int newValue)
         {

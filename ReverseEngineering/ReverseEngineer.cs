@@ -10,6 +10,7 @@ namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
+        private const int HARD_STRING_LIMIT = 227;
         public static int DELETED = 2147483647;
         public ModData modData;
         public ReverseEngineer()
@@ -62,6 +63,10 @@ namespace KenshiCore.ReverseEngineering
         public List<string> getDependencies()
         {
             return CoreUtils.SplitModList(this.modData.Header?.Dependencies);
+        }
+        public List<string> getReferences()
+        {
+            return CoreUtils.SplitModList(this.modData.Header?.References);
         }
         public void addDependencies(List<string> deps)
         {
@@ -865,7 +870,6 @@ namespace KenshiCore.ReverseEngineering
             }
             CoreUtils.Print("termino", 1);
         }
-
         public ModRecord EnsureRecordExists(ModRecord target)
         {
             ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
@@ -890,6 +894,7 @@ namespace KenshiCore.ReverseEngineering
                 this.modData.Records!.Remove(ownedtarget);
             }
             target.ChangeType = 0;
+            target.SetChangeCounter(2);
             target.SetRecordStatus(this.modData.Header!.FileType, "existing");
             this.modData.Records!.Add(target);
         }
@@ -971,9 +976,6 @@ namespace KenshiCore.ReverseEngineering
                 return;
             }
         }
-        
-
-
         private static bool ExtraDataExists(
             Dictionary<string, int[]>? patchCat, Dictionary<string, int[]>? baseCat, string key)
         {

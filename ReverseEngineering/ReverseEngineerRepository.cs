@@ -51,9 +51,6 @@ namespace KenshiCore.ReverseEngineering
         {
             Dictionary<string, Dictionary<string, bool>> SnapshotsDictionary=new();
             HashSet<string> suspiciousStringIds = new();
-            ProgressController progress = ProgressController.Instance;
-            progress.Initialize(_loadOrder.Count);
-            int i = 0;
             foreach (var modName in _loadOrder.AsEnumerable().Reverse())
             {
                 if (_reverseEngineers.TryGetValue(modName, out var re))
@@ -87,10 +84,7 @@ namespace KenshiCore.ReverseEngineering
                         }
                     }
                 }
-                progress.Report(i, $"Checking mod {i} for suspicious records");
-                i++;
             }
-            progress.Finish("Finished checking for suspicious records");
             return suspiciousStringIds.ToList();
         }
         /*public List<string> GetAllStringIds()
@@ -115,8 +109,8 @@ namespace KenshiCore.ReverseEngineering
             return _mergedByTypeAndId[recordType].ContainsKey(stringId);
         }
         // Dictionary keyed by mod name
-        private readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
-        private readonly List<string> _loadOrder = new();
+        public readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
+        public readonly List<string> _loadOrder = new();
 
         private ReverseEngineerRepository() { }
 
@@ -300,7 +294,7 @@ namespace KenshiCore.ReverseEngineering
 
             return result;
         }
-        public ModRecord? getModRecordIfDirty(string id)
+        /*public ModRecord? getModRecordIfDirty(string id)
         {
             ModRecord? result = null;
             bool dirty = false;
@@ -330,7 +324,7 @@ namespace KenshiCore.ReverseEngineering
             }
 
             return dirty?result:null;
-        }
+        }*/
 
         public string? FindLastModifierMod(string id,string field)
         {

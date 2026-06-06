@@ -141,8 +141,12 @@ namespace KenshiCore.Utilities
             return false;
         }
 
-        public static string AddModToList(string? modList, string modName)
+        public static string AddModToList(string? modList, string modName, int hardStringLimit = 99999999)
         {
+            if((modList?.Length ?? 0)+modName.Length+1 > hardStringLimit)
+            {
+                return modList ?? string.Empty;
+            }
             if (string.IsNullOrWhiteSpace(modName))
                 return modList ?? string.Empty;
             var mods = SplitModList(modList);
