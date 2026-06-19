@@ -1,5 +1,6 @@
 ﻿using KenshiCore.Mods;
 using KenshiCore.UI;
+using System.Reflection.Metadata;
 using System.Text;
 
 namespace KenshiCore.Utilities

@@ -483,7 +483,9 @@ namespace KenshiCore.UI
                 UiService.ShowMessage("Workshop folder not set. Please set Kenshi directory first.");
                 return;
             }
-            var mods = getSelectedMods().Where(m => !m.InGameDir && m.WorkshopId != -1).ToList();
+            //var mods = getSelectedMods().Where(m => !m.InGameDir && m.WorkshopId != -1).ToList();
+
+            var mods = getSelectedMods().Where(m=>m.WorkshopId != -1).ToList();
             if (mods.Count == 0)
             {
                 UiService.ShowMessage("No selected mods are from the Steam Workshop.");
@@ -494,13 +496,15 @@ namespace KenshiCore.UI
                 string modName = mod.Name;
                 string workshopFolder = Path.Combine(ModManager.workshopModsPath!, mod.WorkshopId.ToString());
                 string gameDirFolder = Path.Combine(ModManager.gamedirModsPath!, Path.GetFileNameWithoutExtension(modName));
-                if (!Directory.Exists(gameDirFolder))
+                /*if (!Directory.Exists(gameDirFolder))
                 {
                     CopyDirectory(workshopFolder, gameDirFolder);
                     mod.InGameDir = true;
-                    //modsListView.SelectedItems[0].ImageKey = mod.Name;
                     UpdateModIcon(mod);
-                }
+                }*/
+                CopyDirectory(workshopFolder, gameDirFolder);
+                mod.InGameDir = true;
+                UpdateModIcon(mod);
             }
             StringBuilder sb = new StringBuilder();
             sb.AppendJoin(",", mods.ConvertAll(m => m.Name));
@@ -512,7 +516,7 @@ namespace KenshiCore.UI
             Directory.CreateDirectory(targetDir);
 
             foreach (var file in Directory.GetFiles(sourceDir))
-                File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)));
+                File.Copy(file, Path.Combine(targetDir, Path.GetFileName(file)), overwrite: true);
 
             foreach (var dir in Directory.GetDirectories(sourceDir))
                 CopyDirectory(dir, Path.Combine(targetDir, Path.GetFileName(dir)));
@@ -661,6 +665,29 @@ namespace KenshiCore.UI
                 showActionCache[onToggled] = ((CheckBox)s!).Checked;
                 ModsListView_SelectedIndexChanged(null, null);
             };
+
+            buttonPanel.Controls.Add(checkbox);
+        }
+        protected void AddToggle(string label, string toggle_key, bool initialState = false)
+        {
+            var checkbox = new CheckBox
+            {
+                Text = label,
+                Checked = initialState,
+                AutoSize = true,
+                BackColor = secondary_color,
+                Padding = new Padding(2),
+                Margin = new Padding(3)
+            };
+
+            CoreUtils.toggles[toggle_key] = initialState;
+            checkbox.CheckedChanged += (s, e) =>
+            {
+                CoreUtils.toggles[toggle_key] = ((CheckBox)s!).Checked;
+                //ModsListView_SelectedIndexChanged(null, null);
+            };
+
+            ThemeManager.ApplyThemeToControl(checkbox);
 
             buttonPanel.Controls.Add(checkbox);
         }

@@ -10,7 +10,7 @@ namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
-        private const int HARD_STRING_LIMIT = 227;
+        public const int HARD_STRING_LIMIT = 2040;//2047 funciona
         public static int DELETED = 2147483647;
         public ModData modData;
         public ReverseEngineer()
@@ -128,10 +128,16 @@ namespace KenshiCore.ReverseEngineering
                 this.modname = fileName;
 
                 modData.Header = ParseHeader(reader);
+                
                 int recordCount = modData.Header.RecordCount;
                 modData.Records = new List<ModRecord>();
-                for (int i = 0; i < recordCount; i++)
+                /*if (modData.Header.FileType != 16 && modData.Header.FileType != 17)
                 {
+                    CoreUtils.Print($"⚠ Warning: Unsupported filetype {modData.Header.FileType} in {fileName}", 0);
+                    return; // stop processing this file
+                }*/
+                for (int i = 0; i < recordCount; i++)
+                    {
                     try
                     {
                         modData.Records.Add(ParseRecord(reader));
@@ -168,7 +174,9 @@ namespace KenshiCore.ReverseEngineering
                 reader.ReadInt32();
                 return reader.ReadInt32();
             }
-            throw new Exception($"Unexpected filetype: {filetype}");
+            CoreUtils.Print($"⚠ Warning: Unexpected filetype {filetype} in {path}", 0);
+            return -1;
+            //throw new Exception($"Unexpected filetype: {filetype}");
         }
         public void enforceSanity()
         {
@@ -610,6 +618,9 @@ namespace KenshiCore.ReverseEngineering
                     header.RecordCount = ReadInt(reader);
                     break;
                 default:
+                    //header.RecordCount = 0;
+                    //CoreUtils.Print($"⚠ Warning: Unsupported filetype {header.FileType}", 0);
+                    //break;
                     throw new UnsupportedModFileException(header.FileType);
                     //default:
                     //throw new Exception($"Unexpected filetype: {header.FileType}");
@@ -1197,11 +1208,11 @@ namespace KenshiCore.ReverseEngineering
         public int DetailsLength { get; set; }
         public void AddDependency(string modName)
         {
-            Dependencies = CoreUtils.AddModToList(Dependencies, modName);
+            Dependencies = CoreUtils.AddModToList(Dependencies, modName, ReverseEngineer.HARD_STRING_LIMIT);
         }
         public void AddReference(string modName)
         {
-            References = CoreUtils.AddModToList(References, modName);
+            References = CoreUtils.AddModToList(References, modName, ReverseEngineer.HARD_STRING_LIMIT);
         }
     }
 }

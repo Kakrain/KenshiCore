@@ -117,9 +117,10 @@ namespace KenshiCore.Mods
         }
         public string? GetPatchTargetPath()
         {
-            // Base game mods: patch in place
+                // Base game mods: patch in place
             if (IsBaseGame)
-                return getModFilePath()!;
+                throw new InvalidOperationException($"Don't patch base game mod, ever! '{Name}'");
+            //return getModFilePath()!;
 
             // Already in game dir: patch in place
             if (InGameDir)
@@ -153,6 +154,11 @@ namespace KenshiCore.Mods
             UiService.ShowMessage($"Cannot determine patch target for mod '{Name}'", "Error", MessageBoxIcon.Error);
             return null;
             //throw new InvalidOperationException($"Cannot determine patch target for mod '{Name}'");
+        }
+        public string? GetWorkshopDirectory() {
+            if (WorkshopId == -1)
+                return null;
+            return Path.Combine(ModManager.workshopModsPath!,WorkshopId.ToString());
         }
         public string? getPatchPath()
         {

@@ -52,6 +52,11 @@ namespace KenshiCore.UI
                 tb.BackColor = Current.Background;
                 tb.ForeColor = Current.Foreground;
             }
+            else if (control is CheckBox cb)
+            {
+                cb.BackColor = Current.Background;
+                cb.ForeColor = Current.Foreground;
+            }
             /*else if (control is ListView lv)
             {
                 lv.BackColor = Current.Background;

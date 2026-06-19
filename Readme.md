@@ -22,7 +22,9 @@ It provides core functionality for reading mods, handling mod icons, and working
 
 \- .NET 9 Desktop Runtime (x64)
 
-\- Microsoft Visual C++ 2015-2022 Redistributable (x64) if used in GUI applications
+\- Microsoft Visual C++ 20
+
+-2022 Redistributable (x64) if used in GUI applications
 
 
 
