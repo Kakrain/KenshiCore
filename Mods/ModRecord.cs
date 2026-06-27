@@ -32,13 +32,51 @@ namespace KenshiCore.Mods
         public static readonly Dictionary<string, Func<ModRecord, string>> additionalGetters = new Dictionary<string, Func<ModRecord, string>>
         {
             { "_stringId_", r => r.StringId },
-            { "_name_", r => r.Name }
+            { "_name_", r => r.Name },
+            { "text_", r => 
+                {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; ; i++)
+                    {
+                        string field = "text" + i;
+                        string? textValue = r.GetFieldAsString(field);
+                        if (textValue == null || textValue  == "")
+                            break;
+                        sb.AppendJoin("|", textValue);
+                    }
+                    return sb.ToString();
+                } 
+            
+            }
         };
         public static readonly Dictionary<string, Action<ModRecord, object?>> additionalSetters =
         new()
         {
             { "_stringId_", (r, v) => r.StringId = Convert.ToString(v)! },
-            { "_name_",     (r, v) => r.Name     = Convert.ToString(v)! }
+            { "_name_",     (r, v) => r.Name     = Convert.ToString(v)! },
+            { "text_",     (r, v) => 
+                {
+                    string textes=Convert.ToString(v)!;
+                    var textes_list=textes.Split('|');
+
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; ; i++)
+                    {
+                        string field = "text" + i;
+                        if(textes_list.Length > i)
+                        {
+                            r.ForceEnsureFieldExist(field, "string");
+                            r.SetField(field,textes_list[0]);
+                        }else if(r.fieldExist(field,"string")){
+                            r.SetField(field,"");
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                }
+            }
         };
         public override string ToString()
         {
@@ -181,6 +219,28 @@ namespace KenshiCore.Mods
                 case "vec4field":
                     this.Vec4Fields[field] = new float[] { 0.0f, 0.0f, 0.0f, 0.0f };
                     break;
+                default:
+                    throw new ArgumentException($"Unknown record type: {type} available types are: bool,float,int,string,filename,vec3field and vec4field");
+            }
+        }
+        public bool fieldExist(string field, string type)
+        {
+            switch (type)
+            {
+                case "bool":
+                    return this.BoolFields.ContainsKey(field);
+                case "float":
+                    return this.FloatFields.ContainsKey(field);
+                case "int":
+                    return this.LongFields.ContainsKey(field);
+                case "string":
+                    return this.StringFields.ContainsKey(field);
+                case "filename":
+                    return this.FilenameFields.ContainsKey(field);
+                case "vec3field":
+                    return this.Vec3Fields.ContainsKey(field);
+                case "vec4field":
+                    return this.Vec4Fields.ContainsKey(field);
                 default:
                     throw new ArgumentException($"Unknown record type: {type} available types are: bool,float,int,string,filename,vec3field and vec4field");
             }
@@ -912,7 +972,6 @@ namespace KenshiCore.Mods
         public bool isExtraDataEmpty(string? category)
         {
             if (ExtraDataFields == null) return true;
-
             return category == null
                 ? ExtraDataFields.All(cat => cat.Value.Count == 0)
                 : !ExtraDataFields.TryGetValue(category, out var values) || values.Count == 0;
