@@ -45,9 +45,29 @@ namespace KenshiCore.Mods
                         sb.AppendJoin("|", textValue);
                     }
                     return sb.ToString();
-                } 
-            
+                }
+            },
+            { "_first_creator_mod_", r =>
+                {
+                    ReverseEngineerRepository RER=ReverseEngineerRepository.Instance;
+                    ReverseEngineer? creator = RER.GetCreatorReverseEngineer(r.StringId);
+                    if(creator == null)
+                        return "NOT FOUND";
+                    else
+                        return creator.modname;
+                }
+            },
+            { "_last_changer_mod_", r =>
+                {
+                    ReverseEngineerRepository RER=ReverseEngineerRepository.Instance;
+                    ReverseEngineer? changer = RER.GetLastModifierReverseEngineer(r.StringId);
+                    if(changer == null)
+                        return "NOT FOUND";
+                    else
+                        return changer.modname;
+                }
             }
+
         };
         public static readonly Dictionary<string, Action<ModRecord, object?>> additionalSetters =
         new()
@@ -80,9 +100,13 @@ namespace KenshiCore.Mods
         };
         public override string ToString()
         {
+            //return this.ToString(0);
             return this.Name + " | " + this.StringId + " | " + this.getRecordType() + " | " + this.getChangeType();
-
         }
+        /*public string ToString(int verbose)
+        {
+            return this.Name + " | " + this.StringId + " | " + this.getRecordType() +((verbose>0)? " | " + this.getChangeType():"");
+        }*/
         public Dictionary<string, int[]>? GetExtraData(string? category)
         {
             if (category != null)

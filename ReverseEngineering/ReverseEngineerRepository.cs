@@ -216,6 +216,32 @@ namespace KenshiCore.ReverseEngineering
             }
             return sb.ToString();
         }
+        public ReverseEngineer? GetCreatorReverseEngineer(string stringId)
+        {
+            foreach (var modName in _loadOrder)
+            {
+                if (_reverseEngineers.TryGetValue(modName, out var re))
+                {
+                    var record = re.searchModRecordByStringId(stringId);
+                    if (record != null && record.isNew())
+                        return re;
+                }
+            }
+            return null;
+        }
+        public ReverseEngineer? GetLastModifierReverseEngineer(string stringId)
+        {
+            foreach (var modName in _loadOrder.AsEnumerable().Reverse())
+            {
+                if (_reverseEngineers.TryGetValue(modName, out var re))
+                {
+                    var record = re.searchModRecordByStringId(stringId);
+                    if (record != null)
+                        return re;
+                }
+            }
+            return null;
+        }
 
         // Clear all loaded ReverseEngineers
         public void Clear()
@@ -224,22 +250,6 @@ namespace KenshiCore.ReverseEngineering
             _mergedByTypeAndId.Clear();
             _loadOrder.Clear();
         }
-        /*public List<string> GetAssumedRequiredRecords()
-        {
-            List<string> baseMods = new List<string> { "gamedata.base", "rebirth.mod", "Newwworld.mod", "Dialogue.mod" };
-            var assumedReqs = new List<string>();
-
-            foreach (var modName in baseMods)
-            {
-                if (TryGet(modName, out var re))
-                {
-                    assumedReqs.AddRange(re!.GetModsNewRecords());
-                }
-            }
-
-            // Deduplicate (case-sensitive)
-            return assumedReqs.Distinct(StringComparer.Ordinal).ToList();
-        }*/
         public List<ReverseEngineer> ParseModSelector(string selector)
         {
             if (selector.Equals("all", StringComparison.Ordinal))

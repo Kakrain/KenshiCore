@@ -170,7 +170,11 @@ namespace KenshiCore.Utilities
                 Directory.CreateDirectory(outputDir);
                 _currentLogPath = Path.Combine(outputDir, $"{modName}_patch.log");
                 _logWriter?.Dispose();
-                _logWriter = new StreamWriter(_currentLogPath, append: false, Encoding.UTF8);
+
+                var stream = new FileStream(_currentLogPath,FileMode.Create,FileAccess.Write,FileShare.ReadWrite);
+
+                _logWriter = new StreamWriter(stream, Encoding.UTF8);
+                //_logWriter = new StreamWriter(_currentLogPath, append: false, Encoding.UTF8);
                 _logEnabled = true;
 
                 WriteDirect($"[{DateTime.Now}] Starting patch for {modName}");
@@ -202,7 +206,7 @@ namespace KenshiCore.Utilities
         {
             if (!_logEnabled || _logWriter == null) return;
             lock (_lock)
-            {
+            {   
                 _logWriter.WriteLine(msg);
                 _logWriter.Flush();
             }
