@@ -276,32 +276,44 @@ namespace KenshiCore.ReverseEngineering
             CoreUtils.Print($"Parsed mod selector '{selector}' to {result.Count} mods.");
             return result;
         }
+        
         public ModRecord? searchModRecordByStringIdGlobally(string id, bool getEarly)
         {
             ModRecord? result = null;
-
-            foreach (var modName in _loadOrder)
+            int found_index = -1;
+            for (int i = _loadOrder.Count - 1; i >= 0; i--)
             {
+                string modName = _loadOrder[i];
+
                 if (!_reverseEngineers.TryGetValue(modName, out var re))
                     continue;
 
                 var record = re.searchModRecordByStringIdLocally(id);
                 if (record == null)
                     continue;
-
-                if (record.isNew() && result == null)
+                if (record.isNew())
                 {
                     result = record.deepClone();
-
+                    found_index= i;
                     if (getEarly)
                         return result;
-                    continue;
+                    break;
                 }
-
-                if (result != null)
-                    result.applyChangesFrom(record);
             }
+            if(result==null)
+                return null;
+            for (int i = found_index+1; i < _loadOrder.Count; i++)
+            {
+                string modName = _loadOrder[i];
 
+                if (!_reverseEngineers.TryGetValue(modName, out var re))
+                    continue;
+
+                var record = re.searchModRecordByStringIdLocally(id); 
+                if (record == null)
+                    continue;
+                result.applyChangesFrom(record);
+            }
             return result;
         }
         /*public ModRecord? getModRecordIfDirty(string id)
