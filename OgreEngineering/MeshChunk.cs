@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using static System.Windows.Forms.DataFormats;
 
 namespace KenshiCore.OgreEngineering
@@ -12,7 +13,7 @@ namespace KenshiCore.OgreEngineering
     public abstract class MeshChunk
     {
         protected OgreContext context;
-        protected List<MeshChunk> chunks = new();
+        public List<MeshChunk> chunks = new();
         public abstract List<MeshChunk> Read();
         protected MeshChunk(OgreContext context)
         {
@@ -176,6 +177,7 @@ namespace KenshiCore.OgreEngineering
     {
         public Geometry(OgreContext context) : base(context) { }
         private uint vertexCount = 0;
+        ///public List<MeshChunk> chunks { get; } = new();
         public uint getVertexCount()
         {
             return vertexCount;
@@ -187,18 +189,22 @@ namespace KenshiCore.OgreEngineering
             Logger.Print($"Vertex Count: {vertexCount}");
             var (id, length) = context.ReadChunkHeader();
             Logger.Print($"Geometry chunk ID: 0x{id:X4}");
-
+            GeometryVertexDeclaration? declaration = null;
             while (id == (int)MeshChunkType.M_GEOMETRY_VERTEX_DECLARATION || id == (int)MeshChunkType.M_GEOMETRY_VERTEX_BUFFER)
             {
                 MeshChunk? chunk = null;
                 switch (id)
                 {
                     case (int)MeshChunkType.M_GEOMETRY_VERTEX_DECLARATION:
-                        chunk = new GeometryVertexDeclaration(context);
+                        declaration = new GeometryVertexDeclaration(context);
+                        chunk = declaration;
+                        //chunk = new GeometryVertexDeclaration(context);
                         break;
                     case (int)MeshChunkType.M_GEOMETRY_VERTEX_BUFFER:
-                        chunk = new GeometryVertexBuffer(context);
-                        ((GeometryVertexBuffer)chunk).setVertexCount(vertexCount);
+                        var vb = new GeometryVertexBuffer(context);
+                        vb.Declaration = declaration;
+                        vb.setVertexCount(vertexCount);
+                        chunk = vb;
                         break;
                 }
                 if (chunk != null)
@@ -218,6 +224,7 @@ namespace KenshiCore.OgreEngineering
     public class GeometryVertexDeclaration : MeshChunk
     {
         public GeometryVertexDeclaration(OgreContext context) : base(context) { }
+        public List<GeometryVertexElement> Elements { get; } = new();
         public override List<MeshChunk> Read()
         {
             var (id, length) = context.ReadChunkHeader();
@@ -226,6 +233,7 @@ namespace KenshiCore.OgreEngineering
             {
                 var chunk = new GeometryVertexElement(context);
 
+                Elements.Add(chunk);
 
                 chunk.Read();
                 if (!context.IsEndOfStream(6))
@@ -238,24 +246,59 @@ namespace KenshiCore.OgreEngineering
     public class GeometryVertexBuffer : MeshChunk
     {
         uint vertexCount = 0;
-        public GeometryVertexBuffer(OgreContext context) : base(context) { }
+        ushort bindIndex;
+        public GeometryVertexDeclaration? Declaration { get; set; }
+        public List<float[]> Vertices { get; private set; }
+
+        //public List<float[]> Normals = new List<float[]>();
+        public GeometryVertexBuffer(OgreContext context) : base(context) {
+
+            Vertices = new List<float[]>();
+            //Normals = new List<float[]>();
+        }
         public void setVertexCount(uint vertexCount)
         {
             this.vertexCount = vertexCount;
         }
         public override List<MeshChunk> Read()
         {
-            ushort bindIndex = context.ReadUInt16();
+            bindIndex = context.ReadUInt16();
             ushort vertexSize = context.ReadUInt16();
             var (id, length) = context.ReadChunkHeader();
-            context.ReadBytes(vertexSize * (int)vertexCount);
-            Logger.Print($"bindIndex {bindIndex}, vertexSize {vertexSize}, readbytes count{vertexSize * (int)vertexCount}");
+
+
+            var position = Declaration?.Elements.FirstOrDefault(e => e.Semantic == 1 && e.Source == bindIndex);
+            //var normal = Declaration?.Elements.FirstOrDefault(e => e.Semantic == 4 && e.Source == bindIndex);
+            if (position == null)
+            {
+                context.ReadBytes(vertexSize * (int)vertexCount);
+                return chunks;
+            }
+            for (int i = 0; i < vertexCount; i++)
+            {
+                byte[] vertex = context.ReadBytes(vertexSize);
+
+                float x = BitConverter.ToSingle(vertex, position.Offset);
+                float y = BitConverter.ToSingle(vertex, position.Offset + 4);
+                float z = BitConverter.ToSingle(vertex, position.Offset + 8);
+                Vertices.Add(new float[] { x, y, z });
+                
+                /*if (normal != null)
+                {
+                    float nx = BitConverter.ToSingle(vertex, normal.Offset);
+                    float ny = BitConverter.ToSingle(vertex, normal.Offset + 4);
+                    float nz = BitConverter.ToSingle(vertex, normal.Offset + 8);
+
+                    Normals.Add(new float[] { nx, ny, nz });
+                }*/
+            }
+
             return chunks;
         }
     }
     public class GeometryVertexElement : MeshChunk
     {
-        public GeometryVertexElement(OgreContext context) : base(context) { }
+        /*
         public override List<MeshChunk> Read()
         {
             ushort source = context.ReadUInt16();
@@ -264,6 +307,25 @@ namespace KenshiCore.OgreEngineering
             ushort offset = context.ReadUInt16();
             ushort index = context.ReadUInt16();
             Logger.Print($"source {source},tmp {tmp},offset {offset}, index {index}");
+            return chunks;
+        }*/
+        public GeometryVertexElement(OgreContext context) : base(context) { }
+        public ushort Source { get; private set; }
+        public ushort Type { get; private set; }
+        public ushort Semantic { get; private set; }
+        public ushort Offset { get; private set; }
+        public ushort Index { get; private set; }
+
+        public override List<MeshChunk> Read()
+        {
+            Source = context.ReadUInt16();
+            Type =  context.ReadUInt16();
+            Semantic = context.ReadUInt16();
+            Offset = context.ReadUInt16();
+            Index = context.ReadUInt16();
+
+            Logger.Print($"{Index}:{Semantic} {Type} offset={Offset} source={Source}");
+
             return chunks;
         }
     }
@@ -279,18 +341,22 @@ namespace KenshiCore.OgreEngineering
     }
     public class SubMeshBoneAssignment : MeshChunk
     {
+        public int vertexindex = -1;
+        public int boneindex = -1;
+        public float weight = 0;
         public SubMeshBoneAssignment(OgreContext context) : base(context) { }
         public override List<MeshChunk> Read()
         {
-            uint vertexindex = context.ReadUInt32();
-            ushort boneindex = context.ReadUInt16();
-            float weight = context.ReadFloat();
-            Logger.Print($"SubMeshBoneAssignment vertexindex: {vertexindex}, boneindex: {boneindex}, weight: {weight}");
+            vertexindex = (int)context.ReadUInt32();
+            boneindex = context.ReadUInt16();
+            weight = context.ReadFloat();
+            //Logger.Print($"SubMeshBoneAssignment vertexindex: {vertexindex}, boneindex: {boneindex}, weight: {weight}");
             return chunks;
         }
     }
     public class MeshBoneAssignment : MeshChunk
     {
+        
         public MeshBoneAssignment(OgreContext context) : base(context) { }
         public override List<MeshChunk> Read()
         {
@@ -311,73 +377,44 @@ namespace KenshiCore.OgreEngineering
         public MeshLodLevel(OgreContext context) : base(context) { }
         public override List<MeshChunk> Read()
         {
-            /*string strategyName = context.ReadString();
-            ushort numLods = context.ReadUInt16();
-            for (int lodID = 1; lodID < numLods; lodID++)
-            { 
-                var(id, length) = context.ReadChunkHeader();
-                float userValue = context.ReadFloat();
-                MeshChunk? chunk = null;
-                switch (id)
-                {
-                    case (int)MeshChunkType.M_MESH_LOD_MANUAL:
-                        chunk = new MeshLodUsageManual(context);
+        String strategyName = context.ReadString();
+        ushort numLods = context.ReadUInt16();
+        Logger.Print($"MeshLodLevel strategyName: {strategyName}, numLods: {numLods}");
 
-                        break;
-                    case (int)MeshChunkType.M_MESH_LOD_GENERATED:
-
-                        chunk = new MeshLodUsageGenerated(context);
-                        (chunk as MeshLodUsageGenerated)?.setNumSubMeshes(numSubs);
-                        break;
-                    default:
-                        Logger.Print($"Unknown LOD level chunk ID: 0x{id:X4}");
-                        break;
-
-                }
-                if(chunk != null)
-                {
-                    chunks.Add(chunk);
-                    chunks.AddRange(chunk.Read());
-                }
-            }*/
-                String strategyName = context.ReadString();
-                ushort numLods = context.ReadUInt16();
-                Logger.Print($"MeshLodLevel strategyName: {strategyName}, numLods: {numLods}");
-
-                for (int lodID = 1; lodID < numLods; lodID++)
-                {
-                    var (id, length) = context.ReadChunkHeader();
-                    float usageValue = context.ReadFloat();
-                    Logger.Print($"LOD ID: {lodID}, chunk ID: 0x{id:X4}, usageValue: {usageValue}");
-                    switch (id)
+        for (int lodID = 1; lodID < numLods; lodID++)
+        {
+            var (id, length) = context.ReadChunkHeader();
+            float usageValue = context.ReadFloat();
+            Logger.Print($"LOD ID: {lodID}, chunk ID: 0x{id:X4}, usageValue: {usageValue}");
+            switch (id)
+            {
+                case (int)MeshChunkType.M_MESH_LOD_MANUAL:
+                    String name = context.ReadString();
+                    Logger.Print($"M_MESH_LOD_MANUAL name: {name}");
+                    break;
+                case (int)MeshChunkType.M_MESH_LOD_GENERATED:
+                    for (int i = 0; i < numSubs; ++i)
                     {
-                        case (int)MeshChunkType.M_MESH_LOD_MANUAL:
-                            String name = context.ReadString();
-                            Logger.Print($"M_MESH_LOD_MANUAL name: {name}");
-                            break;
-                        case (int)MeshChunkType.M_MESH_LOD_GENERATED:
-                            for (int i = 0; i < numSubs; ++i)
-                            {
-                                uint numIndexes = context.ReadUInt32();
-                                uint offset = context.ReadUInt32();
-                                uint bufferIndex = context.ReadUInt32();
-                                Logger.Print($"M_MESH_LOD_GENERATED numIndexes: {numIndexes}, offset: {offset}, bufferIndex: {bufferIndex}");
-                                if (bufferIndex == unchecked((uint)-1))
-                                {
-                                    bool idx32Bit=context.ReadBool();
-                                    uint buffIndexCount = context.ReadUInt32();
-                                    context.offsetStream((int)buffIndexCount * (idx32Bit ? 4 : 2));
-                                    Logger.Print($"M_MESH_LOD_GENERATED has index buffer. idx32Bit: {idx32Bit}, buffIndexCount: {buffIndexCount}");
-                                }
-                            }
-                            break;
-                        default:
-                            Logger.Print($"Unknown LOD level chunk ID: 0x{id:X4}");
-                            break;
+                        uint numIndexes = context.ReadUInt32();
+                        uint offset = context.ReadUInt32();
+                        uint bufferIndex = context.ReadUInt32();
+                        Logger.Print($"M_MESH_LOD_GENERATED numIndexes: {numIndexes}, offset: {offset}, bufferIndex: {bufferIndex}");
+                        if (bufferIndex == unchecked((uint)-1))
+                        {
+                            bool idx32Bit=context.ReadBool();
+                            uint buffIndexCount = context.ReadUInt32();
+                            context.offsetStream((int)buffIndexCount * (idx32Bit ? 4 : 2));
+                            Logger.Print($"M_MESH_LOD_GENERATED has index buffer. idx32Bit: {idx32Bit}, buffIndexCount: {buffIndexCount}");
+                        }
                     }
-                }
+                    break;
+                default:
+                    Logger.Print($"Unknown LOD level chunk ID: 0x{id:X4}");
+                    break;
+            }
+        }
                 
-                return chunks;
+        return chunks;
         }
     }
     public class SkeletonLink : MeshChunk
@@ -852,15 +889,17 @@ namespace KenshiCore.OgreEngineering
     public class SubMesh : MeshChunk
     {
         private string material_name = "";
+        public bool useSharedVertices { get; private set; }
+        public Geometry? Geometry { get; private set; }
         public SubMesh(OgreContext context) : base(context) { }
+        public List<int> Indices { get; } = new();
         public override List<MeshChunk> Read()
         {
             Logger.Print("Reading SubMesh");
             material_name = context.ReadString();
             Logger.Print($"Material Name: {material_name}");
 
-            bool useSharedVertices = context.ReadBool();
-            Logger.Print($"Use Shared Vertices: {useSharedVertices}");
+            useSharedVertices = context.ReadBool();
             var (id, length) = (0, (uint)0);
             uint indexCount = context.ReadUInt32();
             bool idx32bits = context.ReadBool();
@@ -869,22 +908,29 @@ namespace KenshiCore.OgreEngineering
                 if (idx32bits)
                 {
                     uint[] indexes = context.ReadUInts32((int)indexCount);
+                    Indices.AddRange(indexes.Select(i => (int)i));
                     Logger.Print($"Indexes: {string.Join(", ", indexes)}");
                 }
                 else
                 {
                     ushort[] indexes = context.ReadUInts16((int)indexCount);
+                    Indices.AddRange(indexes.Select(i => (int)i));
                     Logger.Print($"Indexes: {string.Join(", ", indexes)}");
                 }
             }
             if (!useSharedVertices)
             {
                 (id, length) = context.ReadChunkHeader();
+
                 if (id != (int)MeshChunkType.GEOMETRY)
                 {
                     throw new Exception($"Expected GEOMETRY chunk, but got 0x{id:X4}");
                 }
-                new Geometry(context).Read();
+
+                var geometry = new Geometry(context);
+                Geometry = geometry;
+                chunks.Add(geometry);
+                chunks.AddRange(geometry.Read());
             }
 
             (id, length) = context.ReadChunkHeader();

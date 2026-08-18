@@ -18,6 +18,7 @@ namespace KenshiCore.ReverseEngineering
         private static ReverseEngineerRepository? _instance;
         public bool busy { get; private set; } = false;
 
+        public bool ignoreKenshiFixer = true;
         private static readonly HashSet<string> _ignoredModNames =
             new HashSet<string>(StringComparer.Ordinal)
             {
@@ -117,7 +118,7 @@ namespace KenshiCore.ReverseEngineering
         // Add or replace a ReverseEngineer
         public bool AddOrUpdate(string modName, ReverseEngineer re)
         {
-            if (_ignoredModNames.Contains(modName))
+            if (ignoreKenshiFixer&&_ignoredModNames.Contains(modName))
                 return false; // silently ignore
             _reverseEngineers[modName] = re;
             _loadOrder.Add(modName);
@@ -316,37 +317,6 @@ namespace KenshiCore.ReverseEngineering
             }
             return result;
         }
-        /*public ModRecord? getModRecordIfDirty(string id)
-        {
-            ModRecord? result = null;
-            bool dirty = false;
-            foreach (var modName in _loadOrder)
-            {
-                if (!_reverseEngineers.TryGetValue(modName, out var re))
-                    continue;
-
-                var record = re.searchModRecordByStringIdLocally(id);
-                if (record == null)
-                    continue;
-
-                if (record.isNew() && result == null)
-                {
-                    result = record.deepClone();
-                    continue;
-                }
-
-                if (result != null)
-                {
-                    dirty = result.applyChangesCarefully(record);
-                    if (dirty)
-                    {
-                        CoreUtils.Print($"Dirty Record {id} modified by {modName}");
-                    }
-                }
-            }
-
-            return dirty?result:null;
-        }*/
 
         public string? FindLastModifierMod(string id,string field)
         {
