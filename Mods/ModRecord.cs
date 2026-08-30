@@ -399,9 +399,23 @@ namespace KenshiCore.Mods
 
                 foreach (var itemKv in kv.Value)
                 {
-                    this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
+                    if (IsDeleted(itemKv.Value))
+                    {
+                        this.ExtraDataFields[kv.Key].Remove(itemKv.Key);
+                    }
+                    else
+                    {
+                        this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
+                    }
                 }
             }
+        }
+        public static bool IsDeleted(int[] value)
+        {
+            return value.Length == 3 &&
+                   value[0] == ReverseEngineer.DELETED &&
+                   value[1] == ReverseEngineer.DELETED &&
+                   value[2] == ReverseEngineer.DELETED;
         }
         public Dictionary<string, bool> GetFilenameFieldSnapshot()
         {

@@ -110,8 +110,6 @@ namespace KenshiCore.ReverseEngineering
         }
         public void LoadModFile(string path)
         {
-            //try
-            //{
                 modData = new ModData();
                 using var fs = File.OpenRead(path);//Zombie Land
                 using var reader = new BinaryReader(fs, Encoding.UTF8);
@@ -131,11 +129,6 @@ namespace KenshiCore.ReverseEngineering
                 
                 int recordCount = modData.Header.RecordCount;
                 modData.Records = new List<ModRecord>();
-                /*if (modData.Header.FileType != 16 && modData.Header.FileType != 17)
-                {
-                    CoreUtils.Print($"⚠ Warning: Unsupported filetype {modData.Header.FileType} in {fileName}", 0);
-                    return; // stop processing this file
-                }*/
                 for (int i = 0; i < recordCount; i++)
                     {
                     try
@@ -147,7 +140,6 @@ namespace KenshiCore.ReverseEngineering
                         Console.WriteLine($"⚠ End of stream while reading record {i} in {fileName}: {ex.Message}");
                         break; // stop reading further records for this mod
                     }
-                    //modData.Records.Add(ParseRecord(reader));
                 }
                 TryParseDetails(modData.Header);
                 long leftover = fs.Length - fs.Position;
@@ -156,11 +148,6 @@ namespace KenshiCore.ReverseEngineering
                     modData.Leftover = reader.ReadBytes((int)leftover);
                     Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
                 }
-            /*}
-            catch (Exception ex)
-            {
-                CoreUtils.Print($"⚠ Failed to load mod file '{path}': {ex.Message}", 0);
-            }*/
         }
         public static int readJustVersion(string path)
         {
