@@ -222,7 +222,7 @@ namespace KenshiCore.ReverseEngineering
             }
             return null;
         }
-        public void ReloadMod(string path)
+        public void ReloadMod(string path,bool preferUnpatched=false)
         {
             string modName = Path.GetFileName(path);
 
@@ -233,7 +233,16 @@ namespace KenshiCore.ReverseEngineering
 
             try
             {
-                re.LoadModFile(path);
+                string dir = Path.GetDirectoryName(path)!;
+                string unpatchedPath = Path.Combine(dir, Path.GetFileNameWithoutExtension(modName) + ".unpatched");
+                if (preferUnpatched && File.Exists(unpatchedPath))
+                {
+                    re.LoadModFile(unpatchedPath);
+                }
+                else
+                {
+                    re.LoadModFile(path);
+                }
             }
             catch (UnsupportedModFileException ex)
             {
@@ -260,7 +269,7 @@ namespace KenshiCore.ReverseEngineering
                 int patchIndex = _loadOrder.IndexOf(currentPatchName);
 
                 if (patchIndex >= 0)
-                    maxIndex = patchIndex;
+                    maxIndex = patchIndex+1;
             }
             if (selector.Equals("all", StringComparison.Ordinal))
             {
