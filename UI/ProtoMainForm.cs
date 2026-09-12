@@ -151,7 +151,8 @@ namespace KenshiCore.UI
             AddButton("Open Steam Link", OpenSteamLinkButton_Click);
             AddButton("Copy to GameDir", CopyToGameDirButton_Click);
             ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
-            
+
+
             AddColumn("Mod Name", mod => mod.Name,300);
             modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
             logForm = new GeneralLogForm();
@@ -646,6 +647,41 @@ namespace KenshiCore.UI
         {
             return Task.CompletedTask;
         }
+        protected void AddToggle(string label,string key, Action<ModItem>? onToggled=null, bool initialState = false)
+        {
+            var checkbox = new CheckBox
+            {
+                Text = label,
+                Checked = initialState,
+                AutoSize = true,
+                BackColor = secondary_color,
+                Padding = new Padding(2),
+                Margin = new Padding(3)
+            };
+
+            if(onToggled != null)
+            {
+                showActionCache[onToggled] = initialState; 
+                checkbox.CheckedChanged += (s, e) =>
+                {
+                    showActionCache[onToggled] = ((CheckBox)s!).Checked;
+                    ModsListView_SelectedIndexChanged(null, null);
+                };
+            }
+            CoreUtils.toggles[key] = initialState;
+            checkbox.CheckedChanged += (s, e) =>
+            {
+                CoreUtils.toggles[key] = ((CheckBox)s!).Checked;
+            };
+            checkbox.CheckedChanged += (s, e) =>
+            {
+                ModsListView_SelectedIndexChanged(null, null);
+            };
+            ThemeManager.ApplyThemeToControl(checkbox);
+            //AddToggleVar(checkbox, key, initialState);
+            buttonPanel.Controls.Add(checkbox);
+        }
+        /*
         protected void AddToggle(string label, Action<ModItem> onToggled, bool initialState = false)
         {
             var checkbox = new CheckBox
@@ -665,6 +701,7 @@ namespace KenshiCore.UI
                 showActionCache[onToggled] = ((CheckBox)s!).Checked;
                 ModsListView_SelectedIndexChanged(null, null);
             };
+            AddToggleVar(checkbox, label, initialState);
 
             buttonPanel.Controls.Add(checkbox);
         }
@@ -679,17 +716,27 @@ namespace KenshiCore.UI
                 Padding = new Padding(2),
                 Margin = new Padding(3)
             };
-
+            AddToggleVar(checkbox, toggle_key, initialState);
+            
             CoreUtils.toggles[toggle_key] = initialState;
             checkbox.CheckedChanged += (s, e) =>
             {
                 CoreUtils.toggles[toggle_key] = ((CheckBox)s!).Checked;
-                //ModsListView_SelectedIndexChanged(null, null);
             };
 
+            
             ThemeManager.ApplyThemeToControl(checkbox);
 
             buttonPanel.Controls.Add(checkbox);
+        }*/
+        private void AddToggleVar(CheckBox cbox, string key,bool initialState = false)
+        {
+            CoreUtils.toggles[key] = initialState;
+            cbox.CheckedChanged += (s, e) =>
+            {
+                CoreUtils.toggles[key] = ((CheckBox)s!).Checked;
+            };
+
         }
         private void UpdateModIcon(ModItem mod)
         {
@@ -708,6 +755,24 @@ namespace KenshiCore.UI
         protected virtual Color GetModColor(ModItem mod)
         {
             return Color.White;
+        }
+        protected void RefreshColors()
+        {
+            modsListView.BeginUpdate();
+            try
+            {
+                foreach (ListViewItem item in modsListView.Items)
+                {
+                    if (item.Tag is ModItem mod)
+                        item.BackColor = GetModColor(mod);
+                }
+            }
+            finally
+            {
+                modsListView.EndUpdate();
+            }
+
+            modsListView.Invalidate();
         }
         protected virtual void PopulateModsListView()
         {

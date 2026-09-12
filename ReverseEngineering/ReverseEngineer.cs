@@ -1,4 +1,5 @@
 ﻿using KenshiCore.Mods;
+using KenshiCore.UI;
 using KenshiCore.Utilities;
 using System;
 using System.Globalization;
@@ -43,19 +44,13 @@ namespace KenshiCore.ReverseEngineering
         {
             if (modData?.Records == null)
                 return new List<string>();
-            return modData.Records
-                .Where(r => r.isNew())
-                .Select(r => r.getStringId())
-                .ToList();
+            return modData.Records.Where(r => r.isNew()).Select(r => r.getStringId()).ToList();
         }
         public List<string> GetStringIdsOldRecords()
         {
             if (modData?.Records == null)
                 return new List<string>();
-            return modData.Records
-                .Where(r => !r.isNew())
-                .Select(r => r.getStringId())
-                .ToList();
+            return modData.Records.Where(r => !r.isNew()).Select(r => r.getStringId()).ToList();
         }
         public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
         public void WriteFloat(BinaryWriter writer, float v) => writer.Write(v);
@@ -108,46 +103,61 @@ namespace KenshiCore.ReverseEngineering
                 writeValue(writer, kv.Value);
             }
         }
-        public void LoadModFile(string path)
+        public bool LoadModFile(string path)
         {
-                modData = new ModData();
-                using var fs = File.OpenRead(path);//Zombie Land
-                using var reader = new BinaryReader(fs, Encoding.UTF8);
+            modData = new ModData();
+            if(!File.Exists(path))
+            {
+                CoreUtils.Print($"⚠ Warning: File not found: {path}", 0);
+                return false;
+            }
+            using var fs = File.OpenRead(path);//Zombie Land
+            using var reader = new BinaryReader(fs, Encoding.UTF8);
 
-                string fileName = Path.GetFileName(path);
-                string extension = Path.GetExtension(fileName).ToLowerInvariant();
+            string fileName = Path.GetFileName(path);
+            string extension = Path.GetExtension(fileName).ToLowerInvariant();
 
-                if (extension != ".mod" && extension != ".base")
-                {
-                    fileName = Path.GetFileNameWithoutExtension(fileName) + ".mod";
-                }
+            if (extension != ".mod" && extension != ".base")
+            {
+                fileName = Path.GetFileNameWithoutExtension(fileName) + ".mod";
+            }
 
-                // Store canonical mod name (used for StringID creation etc.)
-                this.modname = fileName;
-
+            // Store canonical mod name (used for StringID creation etc.)
+            this.modname = fileName;
+            try
+            {
                 modData.Header = ParseHeader(reader);
-                
-                int recordCount = modData.Header.RecordCount;
-                modData.Records = new List<ModRecord>();
-                for (int i = 0; i < recordCount; i++)
-                    {
-                    try
-                    {
-                        modData.Records.Add(ParseRecord(reader));
-                    }
-                    catch (EndOfStreamException ex)
-                    {
-                        Console.WriteLine($"⚠ End of stream while reading record {i} in {fileName}: {ex.Message}");
-                        break; // stop reading further records for this mod
-                    }
-                }
-                TryParseDetails(modData.Header);
-                long leftover = fs.Length - fs.Position;
-                if (leftover > 0)
+            }
+            catch
+            {
+                return false;
+            }
+
+
+            int recordCount = modData.Header.RecordCount;
+            modData.Records = new List<ModRecord>();
+            for (int i = 0; i < recordCount; i++)
                 {
-                    modData.Leftover = reader.ReadBytes((int)leftover);
-                    Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
+                try
+                {
+                    modData.Records.Add(ParseRecord(reader));
                 }
+                catch (EndOfStreamException)
+                {
+                    return false;
+                    //Console.WriteLine($"⚠ End of stream while reading record {i} in {fileName}: {ex.Message}");
+                    //break; // stop reading further records for this mod
+                }
+            }
+            TryParseDetails(modData.Header);
+            long leftover = fs.Length - fs.Position;
+            if (leftover > 0)
+            {
+                modData.Leftover = reader.ReadBytes((int)leftover);
+                Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
+                return false;
+            }
+            return true;
         }
         public static int readJustVersion(string path)
         {
@@ -172,7 +182,9 @@ namespace KenshiCore.ReverseEngineering
         public void SaveModFile(string path)
         {
             enforceSanity();
+            try { 
             using var fs = File.Create(path);// OpenWrite
+            
             using var writer = new BinaryWriter(fs, Encoding.UTF8);
             modData.Header!.Details = BuildDetails(modData.Header!);
             modData.Header.DetailsLength = modData.Header.Details!.Length;
@@ -183,6 +195,10 @@ namespace KenshiCore.ReverseEngineering
 
             if (modData.Leftover != null)
                 writer.Write(modData.Leftover);
+            }catch (System.IO.IOException)
+            {
+                UiService.ShowMessage($"The process cannot access the file {path}");
+            }
         }
         public void TryParseDetails(ModHeader header)
         {
@@ -605,12 +621,7 @@ namespace KenshiCore.ReverseEngineering
                     header.RecordCount = ReadInt(reader);
                     break;
                 default:
-                    //header.RecordCount = 0;
-                    //CoreUtils.Print($"⚠ Warning: Unsupported filetype {header.FileType}", 0);
-                    //break;
                     throw new UnsupportedModFileException(header.FileType);
-                    //default:
-                    //throw new Exception($"Unexpected filetype: {header.FileType}");
             }
             return header;
         }

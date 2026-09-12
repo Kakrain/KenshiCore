@@ -115,7 +115,7 @@ namespace KenshiCore.OgreEngineering
             using var fs = File.OpenRead(path);
             var ctx = new OgreContext(new BinaryReader(fs, Encoding.UTF8));
             context = ctx;
-             filename = Path.GetFileName(path);
+            filename = Path.GetFileName(path);
             meshreader.filename = filename;
             string extension = Path.GetExtension(filename).ToLowerInvariant();
             this.Name = filename;

@@ -22,6 +22,12 @@ namespace KenshiCore.Mods
         public IReadOnlyList<string> GameDirMods => _gameDirMods;
         public IReadOnlyList<string> WorkshopMods => _workshopMods;
         public IReadOnlyList<string> SelectedMods => _selectedMods;
+        //private List<string> fileOverrideExceptions = new List<string> { "RE_Kenshi.json", "README.md", "LICENSE", "README.txt", "readme.txt","icon.jpg" };
+        private List<string> modExceptions = new List<string> { "Dialogue.mod","Newwworld.mod","rebirth.mod","gamedata.base"};
+        //private List<string> extensionExceptions = new List<string> { ".level", ".zone",".log",".dll",".py",".pyd" };//".txt", ".json", ".md", ".xml", ".ini", ".cfg" };
+        private List<string> extensionWhiteList= new List<string> { ".mesh", ".dds", ".skeleton", ".pu",".xml",".bod2",".tga",".bnk",".phs",".material",".layout"};
+        private Dictionary<string, HashSet<string>>? _assetOverrides = null;
+
 
         public bool excludeUnselectedMods = false;
         public void SetSelectedMods(List<string> mods)
@@ -126,6 +132,36 @@ namespace KenshiCore.Mods
             }
             Mods = merged;
             return merged;
+
+        }
+        public Dictionary<string, HashSet<string>> FindAssetOverrides()
+        {
+            if(_assetOverrides != null)
+                return _assetOverrides;
+            var assets = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+
+            foreach (var mod in Mods.Values)
+            {
+                if (modExceptions.Contains(mod.Name))
+                    continue;
+                string? modPath = Path.GetDirectoryName(mod.getModFilePath());
+                if (modPath == null)
+                    continue;
+                foreach (string file in Directory.GetFiles(modPath,"*",SearchOption.AllDirectories))
+                {
+                    string filename = Path.GetFileName(file); 
+                    if (!extensionWhiteList.Contains(Path.GetExtension(filename)))
+                        continue;
+                    if (!assets.TryGetValue(filename, out var owners))
+                    {
+                        owners = new HashSet<string>();
+                        assets[filename] = owners;
+                    }
+                    owners.Add(mod.Name);
+                }
+            }
+            _assetOverrides= assets.Where(x => x.Value.Count > 1).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            return _assetOverrides;
         }
         public Dictionary<string, ModItem> FilterSelectedMods(Dictionary<string, ModItem> mods)
         {

@@ -13,7 +13,6 @@ namespace KenshiCore.Utilities
     {
         private static FileAnalyzer? _instance;
         private readonly Dictionary<string, MeshEngineer> _cache = new();
-        //private readonly Dictionary<(string path, Type type), object> _cache = new();
         public static FileAnalyzer Instance
         {
             get

@@ -1,6 +1,7 @@
 ﻿using KenshiCore.ReverseEngineering;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -595,9 +596,21 @@ namespace KenshiCore.Mods
             { 107, "CROSSBOW" },{ 109, "AMBIENT_SOUND" },{ 110, "WORLD_EVENT_STATE" },{ 111, "LIMB_REPLACEMENT" },{112,"ANIMATION_FILE"}
         };
         public static readonly Dictionary<string, int> ModTypeNames = ModTypeCodes.ToDictionary(kv => kv.Value, kv => kv.Key);
+        public static string getRecordTypeName(int code)
+        {
+            return ModTypeCodes.GetValueOrDefault(code, $"UNKNOWN:{code.ToString()}");
+        }
+        public static int getRecordTypeInt(string name)
+        {
+            return ModTypeNames.GetValueOrDefault(name, -1);
+        }
         public string getRecordType()
         {
-            return ModTypeCodes.GetValueOrDefault(this.RecordType, $"UNKNOWN:{this.RecordType.ToString()}");
+            return getRecordTypeName(this.RecordType);
+        }
+        public int getRecordTypeCode()
+        {
+            return this.RecordType;
         }
         public List<(string, Color)> getNameOnlyAsBlock()
         {
@@ -950,7 +963,7 @@ namespace KenshiCore.Mods
             }
             if (FloatFields.ContainsKey(field))
             {
-                TrySet(FloatFields, field, value.Replace(".", ","), float.TryParse);
+                TrySet(FloatFields, field, value, (string s, out float result) =>float.TryParse(s,NumberStyles.Float, CultureInfo.InvariantCulture,out result));
                 return;
             }
             if (LongFields.ContainsKey(field))

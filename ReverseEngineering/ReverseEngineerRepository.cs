@@ -89,7 +89,7 @@ namespace KenshiCore.ReverseEngineering
             return suspiciousStringIds.ToList();
         }
         // Dictionary keyed by mod name
-        public readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
+        private readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
         public readonly List<string> _loadOrder = new();
 
         private ReverseEngineerRepository() { }
@@ -106,7 +106,14 @@ namespace KenshiCore.ReverseEngineering
         public ReverseEngineer? GetReverseEngineer(string modName)
         {
             if (_reverseEngineers.TryGetValue(modName, out var re))
+            {
+                if(re.modData== null||re.modData.Records == null)
+                {
+                    CoreUtils.Print($"Reverse engineer for mod {modName} has no Records.");
+                }
                 return re;
+            }
+            CoreUtils.Print($"Could not find reverse engineer for mod {modName}.");
             return null;
         }
         public ConcurrentDictionary<string, ReverseEngineer>  getCache()
@@ -378,9 +385,14 @@ namespace KenshiCore.ReverseEngineering
                     continue;
 
                 var re = new ReverseEngineer();
-                try
+                if (!re.LoadModFile(path))
                 {
-                    re.LoadModFile(path);
+                    CoreUtils.Print($"Failed to load mod file for {kv.Key} at {path}");
+                    continue;
+                }
+                /*try
+                {
+                    
 
                 }
                 catch (UnsupportedModFileException ex)
@@ -388,7 +400,7 @@ namespace KenshiCore.ReverseEngineering
                     CoreUtils.Print($"Error loading mod file for {kv.Key} at {path}: {ex.Message}");
                     continue;
                         //re.LoadModFile(path);
-                }
+                }*/
                 AddOrUpdate(kv.Key, re);
 
                 i++;

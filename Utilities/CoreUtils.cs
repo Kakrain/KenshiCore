@@ -17,7 +17,9 @@ namespace KenshiCore.Utilities
 
         public static bool isModPatched(ModItem mod)
         {
-            string modpath = mod.getModFilePath()!;
+            string? modpath = mod.getModFilePath()!;
+            if (string.IsNullOrEmpty(modpath))
+                return false;
             string dir = Path.GetDirectoryName(modpath)!;
             string modName = Path.GetFileNameWithoutExtension(modpath);
             string patchPath = Path.Combine(dir, modName + ".patch");
@@ -28,7 +30,9 @@ namespace KenshiCore.Utilities
         }
         public static bool isModAPatch(ModItem mod)
         {
-            string modpath = mod.getModFilePath()!;
+            string? modpath = mod.getModFilePath()!;
+            if (string.IsNullOrEmpty(modpath))
+                return false;
             string dir = Path.GetDirectoryName(modpath)!;
             string modName = Path.GetFileNameWithoutExtension(modpath);
             string patchPath = Path.Combine(dir, modName + ".patch");
