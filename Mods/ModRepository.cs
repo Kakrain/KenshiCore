@@ -193,6 +193,11 @@ namespace KenshiCore.Mods
             return null;
 
         }
+        public int GetLoadOrder(ModItem mod)
+        {
+            int index = _selectedMods.IndexOf(mod.Name);
+            return index >= 0 ? index + 1 : -1;
+        }
         public string ResolveRealPath(string virtualPath)
         {
             const string ISNULL = "E_ISNULL";

@@ -390,17 +390,6 @@ namespace KenshiCore.ReverseEngineering
                     CoreUtils.Print($"Failed to load mod file for {kv.Key} at {path}");
                     continue;
                 }
-                /*try
-                {
-                    
-
-                }
-                catch (UnsupportedModFileException ex)
-                {
-                    CoreUtils.Print($"Error loading mod file for {kv.Key} at {path}: {ex.Message}");
-                    continue;
-                        //re.LoadModFile(path);
-                }*/
                 AddOrUpdate(kv.Key, re);
 
                 i++;

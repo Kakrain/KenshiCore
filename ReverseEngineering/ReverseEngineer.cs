@@ -11,7 +11,7 @@ namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
-        public const int HARD_STRING_LIMIT = 2040;//2047 funciona
+        public const int HARD_STRING_LIMIT = 2003; //2000 worked too, 2004 not.
         public static int DELETED = 2147483647;
         public ModData modData;
         public ReverseEngineer()
@@ -980,6 +980,7 @@ namespace KenshiCore.ReverseEngineering
             {
                 if (cat == null) { 
                     cat = new Dictionary<string, int[]>();
+                    ownedtarget.ExtraDataFields[category] = cat;
                 }
                 cat[source.StringId] = new int[] { DELETED, DELETED, DELETED };
                 return;

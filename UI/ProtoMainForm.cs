@@ -1,4 +1,5 @@
 ﻿using KenshiCore.Mods;
+using KenshiCore.ReverseEngineering;
 using KenshiCore.Utilities;
 using System;
 using System.Collections;
@@ -153,7 +154,8 @@ namespace KenshiCore.UI
             ShowLogButton = AddButton("Show Log", ShowLogButton_Click);
 
 
-            AddColumn("Mod Name", mod => mod.Name,300);
+            AddColumn("Mod Name", mod => mod.Name, 300);
+            AddColumn("Load Order", mod => ModRepository.Instance.GetLoadOrder(mod), 80);
             modsListView.SelectedIndexChanged += ModsListView_SelectedIndexChanged;
             logForm = new GeneralLogForm();
             if (!string.IsNullOrEmpty(ModManager.gamedirModsPath) && Directory.Exists(ModManager.gamedirModsPath))
@@ -396,7 +398,7 @@ namespace KenshiCore.UI
             //modsListView.Invalidate();
             UpdateColumnSortMarker(sorter.Column, sorter.Order);
         }
-        
+
         private async Task InitializeAsync()
         {
             await Task.Run(() => LoadMods());
@@ -659,85 +661,53 @@ namespace KenshiCore.UI
                 Margin = new Padding(3)
             };
 
-            if(onToggled != null)
+            CoreUtils.toggles[key] = initialState;
+            if (onToggled != null)
+            {
+                showActionCache[onToggled] = initialState;
+            }
+
+
+
+            checkbox.CheckedChanged += (s, e) =>
+            {
+                bool value = ((CheckBox)s!).Checked;
+                CoreUtils.toggles[key] = value;
+
+                if (onToggled != null)
+                {
+                    showActionCache[onToggled] = value;
+                }
+
+                RefreshColors();
+            };
+
+            /*if (onToggled != null)
             {
                 showActionCache[onToggled] = initialState; 
                 checkbox.CheckedChanged += (s, e) =>
                 {
                     showActionCache[onToggled] = ((CheckBox)s!).Checked;
-                    ModsListView_SelectedIndexChanged(null, null);
+
+                    RefreshColors();
+                    //ModsListView_SelectedIndexChanged(null, null);
                 };
             }
             CoreUtils.toggles[key] = initialState;
             checkbox.CheckedChanged += (s, e) =>
             {
                 CoreUtils.toggles[key] = ((CheckBox)s!).Checked;
-            };
-            checkbox.CheckedChanged += (s, e) =>
+            };*/
+            /*checkbox.CheckedChanged += (s, e) =>
             {
                 ModsListView_SelectedIndexChanged(null, null);
-            };
+            };*/
+
+
             ThemeManager.ApplyThemeToControl(checkbox);
-            //AddToggleVar(checkbox, key, initialState);
             buttonPanel.Controls.Add(checkbox);
         }
-        /*
-        protected void AddToggle(string label, Action<ModItem> onToggled, bool initialState = false)
-        {
-            var checkbox = new CheckBox
-            {
-                Text = label,
-                Checked = initialState,
-                AutoSize = true,
-                BackColor = secondary_color,
-                Padding = new Padding(2),
-                Margin = new Padding(3)
-            };
-
-            showActionCache[onToggled] = initialState;
-
-            checkbox.CheckedChanged += (s, e) =>
-            {
-                showActionCache[onToggled] = ((CheckBox)s!).Checked;
-                ModsListView_SelectedIndexChanged(null, null);
-            };
-            AddToggleVar(checkbox, label, initialState);
-
-            buttonPanel.Controls.Add(checkbox);
-        }
-        protected void AddToggle(string label, string toggle_key, bool initialState = false)
-        {
-            var checkbox = new CheckBox
-            {
-                Text = label,
-                Checked = initialState,
-                AutoSize = true,
-                BackColor = secondary_color,
-                Padding = new Padding(2),
-                Margin = new Padding(3)
-            };
-            AddToggleVar(checkbox, toggle_key, initialState);
-            
-            CoreUtils.toggles[toggle_key] = initialState;
-            checkbox.CheckedChanged += (s, e) =>
-            {
-                CoreUtils.toggles[toggle_key] = ((CheckBox)s!).Checked;
-            };
-
-            
-            ThemeManager.ApplyThemeToControl(checkbox);
-
-            buttonPanel.Controls.Add(checkbox);
-        }*/
-        private void AddToggleVar(CheckBox cbox, string key,bool initialState = false)
-        {
-            CoreUtils.toggles[key] = initialState;
-            cbox.CheckedChanged += (s, e) =>
-            {
-                CoreUtils.toggles[key] = ((CheckBox)s!).Checked;
-            };
-
-        }
+        
         private void UpdateModIcon(ModItem mod)
         {
             Image icon = mod.CreateCompositeIcon();
@@ -764,7 +734,12 @@ namespace KenshiCore.UI
                 foreach (ListViewItem item in modsListView.Items)
                 {
                     if (item.Tag is ModItem mod)
+                    {
                         item.BackColor = GetModColor(mod);
+                        //item.SubItems[1].BackColor = GetModColor(mod); 
+                        //foreach (ListViewItem.ListViewSubItem s in item.SubItems) s.BackColor = GetModColor(mod);
+                    }
+                    //item.BackColor = GetModColor(mod);
                 }
             }
             finally
