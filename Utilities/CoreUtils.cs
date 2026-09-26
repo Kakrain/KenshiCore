@@ -1,4 +1,5 @@
 ﻿using KenshiCore.Mods;
+using KenshiCore.ReverseEngineering;
 using KenshiCore.UI;
 using System.Reflection.Metadata;
 using System.Text;
@@ -11,6 +12,26 @@ namespace KenshiCore.Utilities
         private static readonly object _lock = new object();
         private static HashSet<int> shushed = new HashSet<int>();
         private static StreamWriter? _logWriter;
+        private static ModFormatter formatter = new ModFormatter();
+        private static ModTemplate? template = null;
+        public static ModTemplate GetTemplate()
+        {
+            if (template == null)
+            {
+                template = new ModTemplate();
+            }
+            return template;
+        }
+        public static ModFormatter GetFormatter()
+        {
+            return formatter;
+        }
+        private static Action<string>? _additionalCallback = null;
+        
+        public static void setAdditionalCallback(Action<string> cb)
+        {
+            _additionalCallback = cb; 
+        }
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
         public static Dictionary<string,bool> toggles { get; } = new Dictionary<string, bool>();
@@ -118,7 +139,8 @@ namespace KenshiCore.Utilities
                 return;
             System.Diagnostics.Debug.WriteLine(s);
             OnPrint?.Invoke(s, id);
-
+            if (_additionalCallback != null)
+                _additionalCallback(s);
             if (_logEnabled)
                 WriteDirect($"[{DateTime.Now:HH:mm:ss}] {s}");
         }

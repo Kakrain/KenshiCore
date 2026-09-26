@@ -34,60 +34,6 @@ namespace KenshiCore.ReverseEngineering
             }
         }
         
-        public IReadOnlyDictionary<string, ModRecord> GetAllRecordsMerged(string recordType)
-        {
-            if (!_mergedByTypeAndId.TryGetValue(recordType, out var cached))
-            {
-                var (_, merged) = MergeRecords(
-                    modNames: null,
-                    recordType: recordType,
-                    predicate: null,
-                    maxRecords: int.MaxValue
-                );
-                _mergedByTypeAndId[recordType] = merged.ToDictionary(r => r.StringId, StringComparer.Ordinal);
-            }
-             return _mergedByTypeAndId[recordType];
-        }
-        public List<string> GetAllSuspiciousStringIds()
-        {
-            Dictionary<string, Dictionary<string, bool>> SnapshotsDictionary=new();
-            HashSet<string> suspiciousStringIds = new();
-            foreach (var modName in _loadOrder.AsEnumerable().Reverse())
-            {
-                if (_reverseEngineers.TryGetValue(modName, out var re))
-                {
-                    foreach (ModRecord record in re.modData.Records!)
-                    {
-                        if (suspiciousStringIds.Contains(record.StringId))
-                        {
-                            continue;
-                        }
-                        Dictionary<string, bool> snapshot = record.GetFilenameFieldSnapshot();
-                        if (SnapshotsDictionary.TryGetValue(record.StringId, out var new_snapshot))
-                        {
-                            foreach (var kv in snapshot)
-                            {
-                                if (new_snapshot.ContainsKey(kv.Key) && !new_snapshot[kv.Key] && kv.Value)
-                                {
-                                    suspiciousStringIds.Add(record.StringId);
-                                    break;
-                                }
-                            }
-                            foreach (var kv in new_snapshot)
-                            {
-                                snapshot[kv.Key] = snapshot.TryGetValue(kv.Key, out bool v)? v: kv.Value;
-                            }
-                            SnapshotsDictionary[record.StringId] =new Dictionary<string, bool>(snapshot);
-                        }
-                        else
-                        {
-                            SnapshotsDictionary[record.StringId] = snapshot;
-                        }
-                    }
-                }
-            }
-            return suspiciousStringIds.ToList();
-        }
         // Dictionary keyed by mod name
         private readonly ConcurrentDictionary<string, ReverseEngineer> _reverseEngineers = new();
         public readonly List<string> _loadOrder = new();
@@ -107,7 +53,7 @@ namespace KenshiCore.ReverseEngineering
         {
             if (_reverseEngineers.TryGetValue(modName, out var re))
             {
-                if(re.modData== null||re.modData.Records == null)
+                if(re.modData== null||re.modData.Count == 0)
                 {
                     CoreUtils.Print($"Reverse engineer for mod {modName} has no Records.");
                 }
@@ -151,7 +97,7 @@ namespace KenshiCore.ReverseEngineering
                 if (modNames != null && !modNames.Contains(modName))
                     continue;
 
-                foreach (var record in re.GetRecordsByTypeINMUTABLE(recordType))
+                foreach (var record in re.modData.GetRecordsByType(recordType))
                     collected.Add((record, modName));
             }
             // Merge duplicates preferring "new" records
@@ -189,16 +135,24 @@ namespace KenshiCore.ReverseEngineering
         }
 
         // Get evolution of a specific record across mods
-        public string GetRecordEvolution(string stringId)
+        public string GetRecordEvolution(string stringId,string? field=null)
         {
             var sb = new StringBuilder();
             foreach (var modName in _loadOrder)
             {
                 if (_reverseEngineers.TryGetValue(modName, out var re))
                 {
-                    var record = re.searchModRecordByStringId(stringId);
-                    if (record != null)
+                    var record = re.modData.GetRecordByStringId(stringId);
+                    if (record != null && (field==null || record.HasField(field))  )
+                    {
                         sb.AppendLine($"{modName} => {record}");
+                        if (field != null)
+                        {
+                            sb.AppendLine($"\t[{field}]:{record.GetFieldAsString(field)}");
+                        }
+
+                    }
+                    
                 }
             }
             return sb.ToString();
@@ -209,7 +163,7 @@ namespace KenshiCore.ReverseEngineering
             {
                 if (_reverseEngineers.TryGetValue(modName, out var re))
                 {
-                    var record = re.searchModRecordByStringId(stringId);
+                    var record = re.modData.GetRecordByStringId(stringId);
                     if (record != null && record.isNew())
                         return re;
                 }
@@ -222,7 +176,7 @@ namespace KenshiCore.ReverseEngineering
             {
                 if (_reverseEngineers.TryGetValue(modName, out var re))
                 {
-                    var record = re.searchModRecordByStringId(stringId);
+                    var record = re.modData.GetRecordByStringId(stringId);
                     if (record != null)
                         return re;
                 }
@@ -328,7 +282,7 @@ namespace KenshiCore.ReverseEngineering
                 if (!_reverseEngineers.TryGetValue(modName, out var re))
                     continue;
 
-                var record = re.searchModRecordByStringIdLocally(id);
+                var record = re.modData.GetRecordByStringId(id);
                 if (record == null)
                     continue;
                 if (record.isNew())
@@ -349,7 +303,7 @@ namespace KenshiCore.ReverseEngineering
                 if (!_reverseEngineers.TryGetValue(modName, out var re))
                     continue;
 
-                var record = re.searchModRecordByStringIdLocally(id); 
+                var record = re.modData.GetRecordByStringId(id);
                 if (record == null)
                     continue;
                 result.applyChangesFrom(record);
@@ -362,7 +316,7 @@ namespace KenshiCore.ReverseEngineering
             foreach (var kvp in _reverseEngineers.Reverse())
             {
                 var record =
-                    kvp.Value.searchModRecordByStringIdLocally(id);
+                    kvp.Value.modData.GetRecordByStringId(id);
                 if (record == null)
                     continue;
                 if (record.isFieldChanged(field,"filename"))

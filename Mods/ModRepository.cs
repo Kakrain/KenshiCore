@@ -35,7 +35,7 @@ namespace KenshiCore.Mods
             _selectedMods.Clear();
             _selectedMods.AddRange(mods);
         }
-        public void LoadBaseGameMods()//string gamedirDataPath)
+        /*public void LoadBaseGameMods()//string gamedirDataPath)
         {
             string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
             _baseGameMods.Clear();
@@ -46,8 +46,21 @@ namespace KenshiCore.Mods
             foreach (var file in Directory.GetFiles(gamedirDataPath, "*.base"))
                 _baseGameMods.Add(Path.GetFileName(file));
             
+
+        }*/
+        public void LoadBaseGameMods()
+        {
+            string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
+            _baseGameMods.Clear();
+
+            if (!Directory.Exists(gamedirDataPath)) return;
+
+            _baseGameMods.Add("gamedata.base");
+            _baseGameMods.Add("Newwworld.mod");
+            _baseGameMods.Add("Dialogue.mod");
+            _baseGameMods.Add("rebirth.mod");
         }
-        
+
         public void LoadGameDirMods()//string modsPath)
         {
             string modsPath = ModManager.gamedirModsPath!;

@@ -2,59 +2,41 @@
 using KenshiCore.UI;
 using KenshiCore.Utilities;
 using System;
+using System.Buffers;
+using System.Data.Common;
 using System.Globalization;
+using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
         public const int HARD_STRING_LIMIT = 2003; //2000 worked too, 2004 not.
-        public static int DELETED = 2147483647;
-        public ModData modData;
-        public ReverseEngineer()
-        {
-            modData = new ModData();
-        }
+        public const int DELETED = 2147483647;
+        public ModData modData { get; private set; } = new();
+        public string modname { get; private set; } = "";
         public void InitializeEmptyMod(int fileType = 17)
         {
-            modData.Header = new ModHeader
+            modData.Header = new ModHeader_V17
             {
                 FileType = fileType,
                 ModVersion = 1,
             };
-            modData.Records = new List<ModRecord>();
         }
-        public string modname = "";
-        private readonly Dictionary<int, List<ModRecord>> _recordsByType = new();
-        public int ReadInt(BinaryReader reader) => reader.ReadInt32();
-        public float ReadFloat(BinaryReader reader) => reader.ReadSingle();
-        public bool ReadBool(BinaryReader reader) => reader.ReadBoolean();
         private const int NEW_V16 = unchecked((int)0x80000002u);
         private const int NEW_V17 = 0x00000020;
-        public string ReadString(BinaryReader reader)
-        {
-            int length = reader.ReadInt32();
-            byte[] bytes = reader.ReadBytes(length);
-            return Encoding.UTF8.GetString(bytes);
-        }
         public List<string> GetStringIdsNewRecords()
         {
-            if (modData?.Records == null)
-                return new List<string>();
-            return modData.Records.Where(r => r.isNew()).Select(r => r.getStringId()).ToList();
+            return modData.GetRecords().Where(r => r.isNew()).Select(r => r.getStringId()).ToList();
         }
         public List<string> GetStringIdsOldRecords()
         {
-            if (modData?.Records == null)
-                return new List<string>();
-            return modData.Records.Where(r => !r.isNew()).Select(r => r.getStringId()).ToList();
+            return modData.GetRecords().Where(r => !r.isNew()).Select(r => r.getStringId()).ToList();
         }
-        public void WriteInt(BinaryWriter writer, int v) => writer.Write(v);
-        public void WriteFloat(BinaryWriter writer, float v) => writer.Write(v);
-        public void WriteBool(BinaryWriter writer, bool v) => writer.Write(v);
         public List<string> getDependencies()
         {
             return CoreUtils.SplitModList(this.modData.Header?.Dependencies);
@@ -83,20 +65,9 @@ namespace KenshiCore.ReverseEngineering
             writer.Write(bytes.Length);
             writer.Write(bytes);
         }
-        public Dictionary<string, T> ReadDictionary<T>(BinaryReader reader, Func<BinaryReader, T> readValue)
-        {
-            int count = reader.ReadInt32();
-            var dict = new Dictionary<string, T>();
-            for (int i = 0; i < count; i++)
-            {
-                string key = ReadString(reader);
-                dict[key] = readValue(reader);
-            }
-            return dict;
-        }
         public void WriteDictionary<T>(BinaryWriter writer, Dictionary<string, T> dict, Action<BinaryWriter, T> writeValue)
         {
-            writer.Write(dict.Count());
+            writer.Write(dict.Count);
             foreach (var kv in dict)
             {
                 WriteString(writer, kv.Key);
@@ -105,59 +76,19 @@ namespace KenshiCore.ReverseEngineering
         }
         public bool LoadModFile(string path)
         {
-            modData = new ModData();
-            if(!File.Exists(path))
-            {
-                CoreUtils.Print($"⚠ Warning: File not found: {path}", 0);
-                return false;
-            }
-            using var fs = File.OpenRead(path);//Zombie Land
+            _nextFreeStringIdNumber = -1;
+            ModReader mreader = new ModReader();
+
+            bool result = mreader.Read(path);
+
+            modData = mreader.data ?? new ModData();
+            return result;
+        }
+        public static int readJustFiletype(string path)
+        {
+            using var fs = File.OpenRead(path);
             using var reader = new BinaryReader(fs, Encoding.UTF8);
-
-            string fileName = Path.GetFileName(path);
-            string extension = Path.GetExtension(fileName).ToLowerInvariant();
-
-            if (extension != ".mod" && extension != ".base")
-            {
-                fileName = Path.GetFileNameWithoutExtension(fileName) + ".mod";
-            }
-
-            // Store canonical mod name (used for StringID creation etc.)
-            this.modname = fileName;
-            try
-            {
-                modData.Header = ParseHeader(reader);
-            }
-            catch
-            {
-                return false;
-            }
-
-
-            int recordCount = modData.Header.RecordCount;
-            modData.Records = new List<ModRecord>();
-            for (int i = 0; i < recordCount; i++)
-                {
-                try
-                {
-                    modData.Records.Add(ParseRecord(reader));
-                }
-                catch (EndOfStreamException)
-                {
-                    return false;
-                    //Console.WriteLine($"⚠ End of stream while reading record {i} in {fileName}: {ex.Message}");
-                    //break; // stop reading further records for this mod
-                }
-            }
-            TryParseDetails(modData.Header);
-            long leftover = fs.Length - fs.Position;
-            if (leftover > 0)
-            {
-                modData.Leftover = reader.ReadBytes((int)leftover);
-                Console.WriteLine($"⚠ Warning: {leftover} leftover bytes detected.");
-                return false;
-            }
-            return true;
+            return reader.ReadInt32();
         }
         public static int readJustVersion(string path)
         {
@@ -173,280 +104,26 @@ namespace KenshiCore.ReverseEngineering
             }
             CoreUtils.Print($"⚠ Warning: Unexpected filetype {filetype} in {path}", 0);
             return -1;
-            //throw new Exception($"Unexpected filetype: {filetype}");
-        }
-        public void enforceSanity()
-        {
-            this.modData.Header!.RecordCount = this.modData.Records!.Count();
         }
         public void SaveModFile(string path)
         {
-            enforceSanity();
-            try { 
-            using var fs = File.Create(path);// OpenWrite
-            
-            using var writer = new BinaryWriter(fs, Encoding.UTF8);
-            modData.Header!.Details = BuildDetails(modData.Header!);
-            modData.Header.DetailsLength = modData.Header.Details!.Length;
-
-            WriteHeader(writer, modData.Header!);
-            foreach (var record in modData.Records!)
-                WriteRecord(writer, record);
-
-            if (modData.Leftover != null)
-                writer.Write(modData.Leftover);
-            }catch (System.IO.IOException)
-            {
-                UiService.ShowMessage($"The process cannot access the file {path}");
-            }
-        }
-        public void TryParseDetails(ModHeader header)
-        {
-            if (header.FileType != 17 || header.Details == null)
-                return;
-
-            using var ms = new MemoryStream(header.Details);
-            using var reader = new BinaryReader(ms, Encoding.UTF8);
-
-            long lastGoodPos = ms.Position;
-
-            T? TryRead<T>(Func<BinaryReader, T> func, out bool success)
-            {
-                long startPos = ms.Position;
-                try
-                {
-                    var val = func(reader);
-                    success = true;
-                    lastGoodPos = ms.Position; // update last successfully read position
-                    return val;
-                }
-                catch
-                {
-                    ms.Position = startPos;
-                    success = false;
-                    return default;
-                }
-            }
-
-            bool ok;
-            if (ms.Position < ms.Length)
-                header.Author = TryRead(ReadString, out ok) ?? null;
-            if (ms.Position < ms.Length)
-                header.Description = TryRead(ReadString, out ok) ?? null;
-            if (ms.Position < ms.Length)
-                header.Dependencies = TryRead(ReadString, out ok) ?? null;
-            if (ms.Position < ms.Length)
-                header.References = TryRead(ReadString, out ok) ?? null;
-            // Optional fields
-            if (ms.Position < ms.Length)
-                header.SaveCount = TryRead(r => r.ReadUInt32(), out ok);
-            if (ms.Position < ms.Length)
-                header.LastMerge = TryRead(r => r.ReadUInt32(), out ok);
-            if (ms.Position < ms.Length)
-                header.MergeEntries = TryRead(ReadMergeEntries, out ok) ?? null;
-            if (ms.Position < ms.Length)
-                header.DeleteRequests = TryRead(ReadDeleteRequests, out ok) ?? null;
-
-            // Keep remaining bytes
-            if (lastGoodPos != ms.Length)
-                header.UnparsedDetails = ms.ToArray()[(int)lastGoodPos..];
-        }
-        public List<ModRecord> GetRecordsByTypeMUTABLE(string recordType)
-        {
-            if (!ModRecord.ModTypeNames.TryGetValue(recordType, out int code))
-                throw new FormatException($"Invalid patch definition format: '{recordType}' is not a valid Record Type");
-            return GetRecordsByTypeMUTABLE(code);
-
-        }
-        public List<ModRecord> GetRecordsByTypeMUTABLE(int recordType)
-        {
-            return modData.Records!.Where(r => r.RecordType == recordType).ToList();
-        }
-        public List<ModRecord> GetRecordsByTypeINMUTABLE(int recordType)
-        {
-            List<ModRecord>? result;
-            if (!_recordsByType.TryGetValue(recordType, out result))
-            {
-                result = modData.Records!.Where(r => r.RecordType == recordType).ToList();
-                _recordsByType[recordType] = result;
-            }
-            return result;
-        }
-        public List<ModRecord> GetRecordsByTypeINMUTABLE(string recordType)
-        {
-            if (!ModRecord.ModTypeNames.TryGetValue(recordType, out int code))
-                throw new FormatException($"Invalid patch definition format: '{recordType}' is not a valid Record Type");
-            return GetRecordsByTypeINMUTABLE(code);
-        }
-        public byte[] BuildDetails(ModHeader header)
-        {
-            using var ms = new MemoryStream();
-            using var writer = new BinaryWriter(ms, Encoding.UTF8);
-            // Always write the "known" fields
-            if (header.Author != null)
-                WriteString(writer, header.Author);
-            if (header.Description != null)
-                WriteString(writer, header.Description);
-            if (header.Dependencies != null)
-            {
-                //header.Dependencies = maxdeps;
-                WriteString(writer, header.Dependencies);
-            }
-            if (header.References != null)
-                WriteString(writer, header.References);
-            if (header.SaveCount != null)
-                writer.Write(header.SaveCount.Value);
-            if (header.LastMerge != null)
-                writer.Write(header.LastMerge.Value);
-            if (header.MergeEntries != null)
-                WriteMergeEntries(writer, header.MergeEntries);
-            if (header.DeleteRequests != null)
-                WriteDeleteRequests(writer, header.DeleteRequests);
-            if (header.UnparsedDetails != null && header.UnparsedDetails.Length > 0)
-            {
-                writer.Write(header.UnparsedDetails);
-            }
-            return ms.ToArray();
-        }
-        private Dictionary<string, MergeEntry> ReadMergeEntries(BinaryReader reader)
-        {
-            byte count = reader.ReadByte();
-            var dict = new Dictionary<string, MergeEntry>(count);
-            for (int i = 0; i < count; i++)
-            {
-                string key = ReadString(reader);
-                dict[key] = new MergeEntry(reader.ReadUInt32(), reader.ReadUInt32());
-            }
-            return dict;
-        }
-        public List<(string Text, Color Color)> ValidateAllDataAsBlocks()
-        {
-            var blocks = new List<(string, Color)>();
-
-            if (modData.Header != null)
-            {
-
-                int filetype = modData.Header.FileType;
-                blocks.Add(($"--- FOLLOWING NON CONFORMING: v{filetype} ---", Color.Yellow));
-                if (modData.Records != null)
-                {
-                    foreach (var rec in modData.Records)
-                    {
-                        if (!rec.ValidateChangeTypeAssumptions(filetype))
-                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.getRecordType()}) ({rec.getChangeType()})---", Color.Red));
-                        if (!rec.ValidateDataTypeAssumptions())
-                            blocks.Add(($"--- RECORD: {rec.Name} {rec.StringId} ({rec.RecordType}) ({rec.getRecordType()})---", Color.Red));
-                    }
-                }
-            }
-            return blocks;
-        }
-        public List<(string Text, Color Color)> GetHeaderAsBlocks(string? recordTypeFilter = null, List<string>? fieldFilter = null)
-        {
-            var blocks = new List<(string, Color)>();
-
-            // Header
-            if (modData.Header != null)
-            {
-                blocks.Add(("--- MOD HEADER ---", Color.LightBlue));
-                blocks.Add(($"FileType: {modData.Header.FileType}", Color.Gray));
-                blocks.Add(($"ModVersion: {modData.Header.ModVersion}", Color.Gray));
-                if (!string.IsNullOrEmpty(modData.Header.Author))
-                    blocks.Add(($"Author: {modData.Header.Author}", Color.LightGreen));
-                if (!string.IsNullOrEmpty(modData.Header.Description))
-                    blocks.Add(($"Description: {modData.Header.Description}", Color.LightGreen));
-                if (!string.IsNullOrEmpty(modData.Header.Dependencies))
-                    blocks.Add(($"Dependencies: {modData.Header.Dependencies}", Color.LightCyan));
-                if (!string.IsNullOrEmpty(modData.Header.References))
-                    blocks.Add(($"References: {modData.Header.References}", Color.LightCyan));
-                blocks.Add(($"RecordCount: {modData.Header.RecordCount}", Color.Gray));
-            }
-            return blocks;
-        }
-        public string GetHeaderAsString()
-        {
-            StringBuilder sb = new StringBuilder();
-
-            // Header
-            if (modData.Header != null)
-            {
-                sb.AppendLine(("--- MOD HEADER ---"));
-                sb.AppendLine(($"FileType: {modData.Header.FileType}"));
-                sb.AppendLine(($"ModVersion: {modData.Header.ModVersion}"));
-                if (!string.IsNullOrEmpty(modData.Header.Author))
-                    sb.AppendLine(($"Author: {modData.Header.Author}"));
-                if (!string.IsNullOrEmpty(modData.Header.Description))
-                    sb.AppendLine(($"Description: {modData.Header.Description}"));
-                if (!string.IsNullOrEmpty(modData.Header.Dependencies))
-                    sb.AppendLine(($"Dependencies: {modData.Header.Dependencies}"));
-                if (!string.IsNullOrEmpty(modData.Header.References))
-                    sb.AppendLine(($"References: {modData.Header.References}"));
-                sb.AppendLine(($"RecordCount: {modData.Header.RecordCount}"));
-            }
-            return sb.ToString();
-        }
-        public List<(string Text, Color Color)> GetRecordsAsBlocks(string? recordTypeFilter = null, List<string>? fieldFilter = null)
-        {
-            var blocks = new List<(string, Color)>();
-            // Records
-            if (modData.Records != null)
-            {
-                foreach (var rec in modData.Records)
-                {
-                    if (recordTypeFilter != null &&
-                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
-                        continue;
-                    blocks.AddRange(rec.getDataAsBlock(fieldFilter));
-                }
-            }
-            return blocks;
-        }
-        public string GetRecordNamesAsString(string? recordTypeFilter = null, List<string>? fieldFilter = null)
-        {
-            StringBuilder sb = new StringBuilder();
-            if (modData.Records != null)
-            {
-                foreach (var rec in modData.Records)
-                {
-                    if (recordTypeFilter != null &&
-                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
-                        continue;
-                    sb.AppendLine($"--- RECORD: {rec.Name} ({rec.getRecordType()}) ---");
-                    sb.AppendLine($"ID: {rec.Id}, StringID: {rec.StringId}, ChangeType: {rec.getChangeType()}");
-                }
-            }
-            return sb.ToString();
-        }
-        public string GetRecordsAsString(string? recordTypeFilter = null, List<string>? fieldFilter = null)
-        {
-            StringBuilder sb = new StringBuilder();
-            if (modData.Records != null)
-            {
-                foreach (var rec in modData.Records)
-                {
-                    if (recordTypeFilter != null &&
-                    !rec.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
-                        continue;
-                    sb.Append(rec.getDataAsString(fieldFilter));
-                }
-            }
-            return sb.ToString();
+            ModWriter writer = new ModWriter();
+            writer.Write(path, modData);
         }
         public List<(string Text, Color Color)> CompareWith(ReverseEngineer other, string? recordTypeFilter = null, List<string>? fieldFilter = null)
         {
             var blocks = new List<(string, Color)>();
-
-            if (this.modData?.Records == null || other.modData?.Records == null)
+            int typeCompare = ModRecord.getRecordTypeInt(recordTypeFilter ?? "");
+            if (this.modData?.Count == 0 || other.modData?.Count == 0)
                 return blocks;
 
             // Build quick lookup by record name (case-insensitive).
-            // You can swap to StringId if you prefer a different matching key.
-            var mineByName = this.modData.Records
-                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+            var mineByName = this.modData!.GetRecords()
+                .Where(r => typeCompare == -1 || r.RecordType == typeCompare)
                 .ToDictionary(r => r.Name ?? "", StringComparer.Ordinal);
 
-            var otherByName = other.modData.Records
-                .Where(r => recordTypeFilter == null || r.getRecordType().Equals(recordTypeFilter, StringComparison.Ordinal))
+            var otherByName = other.modData!.GetRecords()
+                .Where(r => typeCompare == -1 || r.RecordType == typeCompare)
                 .ToDictionary(r => r.Name ?? "", StringComparer.Ordinal);
 
             // Intersection: only records present in both
@@ -532,6 +209,7 @@ namespace KenshiCore.ReverseEngineering
 
             return blocks;
         }
+
         private static string FormatFieldValueForDisplay(object? v)
         {
             if (v == null) return "<missing>";
@@ -566,219 +244,22 @@ namespace KenshiCore.ReverseEngineering
                    o is int || o is uint || o is long || o is ulong ||
                    o is float || o is double || o is decimal;
         }
-        private void WriteMergeEntries(BinaryWriter writer, Dictionary<string, MergeEntry> entries)
-        {
-            writer.Write((byte)entries.Count);
-            foreach (var kv in entries)
-            {
-                WriteString(writer, kv.Key);
-                writer.Write(kv.Value.SaveCount);
-                writer.Write(kv.Value.LastMerge);
-            }
-        }
-
-        private Dictionary<string, DeleteRequest> ReadDeleteRequests(BinaryReader reader)
-        {
-            byte count = reader.ReadByte();
-            var dict = new Dictionary<string, DeleteRequest>(count);
-            for (int i = 0; i < count; i++)
-            {
-                string key = ReadString(reader);
-                dict[key] = new DeleteRequest(reader.ReadUInt32(), ReadString(reader));
-            }
-            return dict;
-        }
-
-        private void WriteDeleteRequests(BinaryWriter writer, Dictionary<string, DeleteRequest> requests)
-        {
-            writer.Write((byte)requests.Count);
-            foreach (var kv in requests)
-            {
-                WriteString(writer, kv.Key);
-                writer.Write(kv.Value.saveCount);
-                WriteString(writer, kv.Value.Target);
-            }
-        }
-        private ModHeader ParseHeader(BinaryReader reader)
-        {
-            var header = new ModHeader();
-            header.FileType = ReadInt(reader);
-            switch (header.FileType)
-            {
-                case 16:
-                    header.ModVersion = ReadInt(reader);
-                    header.Author = ReadString(reader);
-                    header.Description = ReadString(reader);
-                    header.Dependencies = ReadString(reader);
-                    header.References = ReadString(reader);
-                    header.UnknownInt = ReadInt(reader);
-                    header.RecordCount = ReadInt(reader);
-                    break;
-                case 17:
-                    header.DetailsLength = ReadInt(reader);
-                    header.ModVersion = ReadInt(reader);
-                    header.Details = reader.ReadBytes(header.DetailsLength);
-                    header.RecordCount = ReadInt(reader);
-                    break;
-                default:
-                    throw new UnsupportedModFileException(header.FileType);
-            }
-            return header;
-        }
-        private void WriteHeader(BinaryWriter writer, ModHeader header)
-        {
-            WriteInt(writer, header.FileType);
-            switch (header.FileType)
-            {
-                case 16:
-                    WriteInt(writer, header.ModVersion);
-                    WriteString(writer, header.Author!);
-                    WriteString(writer, header.Description!);
-                    WriteString(writer, header.Dependencies!);
-                    WriteString(writer, header.References!);
-                    WriteInt(writer, header.UnknownInt);
-                    //WriteInt(writer, header.RecordCount);
-                    WriteInt(writer, this.modData.Records == null ? 0 : this.modData.Records.Count);
-                    break;
-                case 17:
-                    WriteInt(writer, header.DetailsLength);
-                    WriteInt(writer, header.ModVersion);
-                    writer.Write(header.Details!);
-                    //if (header.RecordCount != this.modData.Records.Count)
-                    //    CoreUtils.Print($"Writing record: {header.RecordCount} {this.modData.Records.Count})", 1);
-                    //WriteInt(writer, header.RecordCount);
-                    WriteInt(writer, this.modData.Records == null ? 0 : this.modData.Records.Count);
-                    break;
-            }
-        }
-        private ModRecord ParseRecord(BinaryReader reader)
-        {
-            var record = new ModRecord();
-            record.InstanceCount = ReadInt(reader);
-            record.RecordType = ReadInt(reader);//BUILDING,GAMESTATE_FACTION,etc
-            record.Id = ReadInt(reader);
-            record.Name = ReadString(reader);
-            record.StringId = ReadString(reader);
-            record.ChangeType = ReadInt(reader);//-2147483646 means new,-2147483647 means changed,-2147483645 changed and name was changed
-
-            record.BoolFields = ReadDictionary(reader, ReadBool); //if removed by a mod just one bool field: "REMOVED": True
-            record.FloatFields = ReadDictionary(reader, ReadFloat);
-            record.LongFields = ReadDictionary(reader, ReadInt);
-            record.Vec3Fields = ReadDictionary(reader, r => new float[] { ReadFloat(r), ReadFloat(r), ReadFloat(r) });
-            record.Vec4Fields = ReadDictionary(reader, r => new float[] { ReadFloat(r), ReadFloat(r), ReadFloat(r), ReadFloat(r) });
-            record.StringFields = ReadDictionary(reader, ReadString);
-            record.FilenameFields = ReadDictionary(reader, ReadString);
-
-            record.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            int extraCatCount = ReadInt(reader);
-            for (int i = 0; i < extraCatCount; i++)
-            {
-                string catName = ReadString(reader);
-                int itemCount = ReadInt(reader);
-                var catValue = new Dictionary<string, int[]>();
-                for (int j = 0; j < itemCount; j++)
-                {
-                    string itemName = ReadString(reader);
-                    int[] values = new int[3] { ReadInt(reader), ReadInt(reader), ReadInt(reader) };
-                    catValue[itemName] = values;
-                }
-                record.ExtraDataFields[catName] = catValue;
-            }
-
-            // Instance fields
-            record.InstanceFields = new List<ModInstance>();
-            int instanceCount2 = ReadInt(reader);
-            for (int i = 0; i < instanceCount2; i++)
-            {
-                var inst = new ModInstance();
-                inst.Id = ReadString(reader);
-                inst.Target = ReadString(reader);
-                inst.Tx = ReadFloat(reader);
-                inst.Ty = ReadFloat(reader);
-                inst.Tz = ReadFloat(reader);
-                inst.Rw = ReadFloat(reader);
-                inst.Rx = ReadFloat(reader);
-                inst.Ry = ReadFloat(reader);
-                inst.Rz = ReadFloat(reader);
-                inst.StateCount = ReadInt(reader);
-                inst.States = new List<string>();
-                for (int j = 0; j < inst.StateCount; j++)
-                    inst.States.Add(ReadString(reader));
-                record.InstanceFields.Add(inst);
-            }
-
-            return record;
-        }
-        private void WriteRecord(BinaryWriter writer, ModRecord record)
-        {
-            //if (record.InstanceCount!= record.InstanceFields.Count())
-            //CoreUtils.Print($"Writing record: {record.Name} ({record.StringId} {record.InstanceCount} {record.InstanceFields.Count()})", 0);
-            //WriteInt(writer, record.InstanceCount);
-            WriteInt(writer, record.InstanceFields.Count());
-            WriteInt(writer, record.RecordType);
-            WriteInt(writer, record.Id);
-            WriteString(writer, record.Name);
-            WriteString(writer, record.StringId);
-            WriteInt(writer, record.ChangeType);
-
-            WriteDictionary(writer, record.BoolFields, WriteBool);
-            WriteDictionary(writer, record.FloatFields, WriteFloat);
-            WriteDictionary(writer, record.LongFields, WriteInt);
-            WriteDictionary(writer, record.Vec3Fields, (w, v) => { foreach (var f in v) WriteFloat(w, f); });
-            WriteDictionary(writer, record.Vec4Fields, (w, v) => { foreach (var f in v) WriteFloat(w, f); });
-            WriteDictionary(writer, record.StringFields, WriteString);
-            WriteDictionary(writer, record.FilenameFields, WriteString);
-
-            // Extra data
-            WriteInt(writer, record.ExtraDataFields!.Count());
-            //if (record.ExtraDataFields!.Count ==0)
-            //CoreUtils.Print($"Writing record: {record.Name} ({record.StringId} {record.ExtraDataFields!.Count} {record.InstanceFields.Count})", 1);
-
-            foreach (var kv in record.ExtraDataFields)
-            {
-                WriteString(writer, kv.Key);
-                WriteInt(writer, kv.Value.Count());
-                foreach (var kv2 in kv.Value)
-                {
-                    WriteString(writer, kv2.Key);
-                    foreach (var val in kv2.Value)
-                        WriteInt(writer, val);
-                }
-            }
-
-            // Instance fields
-            WriteInt(writer, record.InstanceFields!.Count());
-            foreach (var inst in record.InstanceFields)
-            {
-                WriteString(writer, inst.Id!);
-                WriteString(writer, inst.Target!);
-                WriteFloat(writer, inst.Tx);
-                WriteFloat(writer, inst.Ty);
-                WriteFloat(writer, inst.Tz);
-                WriteFloat(writer, inst.Rw);
-                WriteFloat(writer, inst.Rx);
-                WriteFloat(writer, inst.Ry);
-                WriteFloat(writer, inst.Rz);
-                WriteInt(writer, inst.StateCount);
-                foreach (var s in inst.States!)
-                    WriteString(writer, s);
-            }
-        }
         public void ApplyToStrings(Func<string, string> func)
         {
             if (modData.Header!.FileType == 16 && modData.Header.Description != null)
                 modData.Header.Description = func(modData.Header.Description);
 
-            foreach (var record in modData.Records!)
+            foreach (var record in modData.GetRecords())
             {
                 if (record.Name != null)
                     record.Name = func(record.Name);
 
                 if (record.StringFields != null)
                 {
-                    var keys = new List<string>(record.StringFields.Keys);
-                    foreach (var key in keys)
+                    foreach (var key in record.StringFields.Keys)
+                    {
                         record.StringFields[key] = func(record.StringFields[key]);
+                    }
                 }
             }
         }
@@ -790,7 +271,7 @@ namespace KenshiCore.ReverseEngineering
         {
             StringBuilder sba = new StringBuilder();
             StringBuilder sbs = new StringBuilder();
-            foreach (var record in modData.Records!)
+            foreach (var record in modData.GetRecords())
             {
                 if (!string.IsNullOrEmpty(record.Name))
                     if (sba.Length <= maxChars)
@@ -812,76 +293,9 @@ namespace KenshiCore.ReverseEngineering
             }
             return Tuple.Create(sba.ToString(), sbs.ToString());
         }
-        //for debugging purposes.
-        public void generateResaves(string start = "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/")
-        {
-            //string start = "C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/";
-            //string start = "C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860";
-
-            foreach (string folder in Directory.GetDirectories(start))
-            {
-                System.Diagnostics.Debug.WriteLine(folder);
-                foreach (string file in Directory.GetFiles(folder, "*.mod"))
-                {
-                    System.Diagnostics.Debug.WriteLine(file);
-                    this.LoadModFile(file);
-                    string resavedPath = Path.Combine(
-                        Path.GetDirectoryName(file)!,
-                        Path.GetFileNameWithoutExtension(file) + ".resaved"
-                    );
-                    this.SaveModFile(resavedPath);
-                }
-            }
-        }
-        public void testAll()
-        {
-            List<string> files = new List<string>();
-            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/mods/"))
-            {
-                foreach (string file in Directory.GetFiles(folder, "*.mod"))
-                {
-                    files.Add(file);
-                }
-            }
-            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/workshop/content/233860"))
-            {
-                foreach (string file in Directory.GetFiles(folder, "*.mod"))
-                {
-                    files.Add(file);
-                }
-            }
-            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/data"))
-            {
-                foreach (string file in Directory.GetFiles(folder, "*.mod"))
-                {
-                    files.Add(file);
-                }
-            }
-            foreach (string folder in Directory.GetDirectories("C:/AlternativProgramFiles/Steam/steamapps/common/Kenshi/data"))
-            {
-                foreach (string file in Directory.GetFiles(folder, "*.base"))
-                {
-                    files.Add(file);
-                }
-            }
-            foreach (string file in files)
-            {
-                this.LoadModFile(file);
-                List<ModRecord> recs = this.GetRecordsByTypeMUTABLE("SQUAD_TEMPLATE");
-                foreach (ModRecord rec in recs)
-                {
-                    if (rec.isNew() && rec.ExtraDataFields != null)
-                        foreach (var cat in rec.ExtraDataFields.Values)
-                            foreach (var vals in cat.Values)
-                                if (vals.Length != 3)
-                                    CoreUtils.Print($"array tiene {vals.Length} elementos " + rec.ToString(), 0);
-                }
-            }
-            CoreUtils.Print("termino", 1);
-        }
         public ModRecord EnsureRecordExists(ModRecord target)
         {
-            ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
+            ModRecord? ownedtarget = modData.GetRecordByStringId(target.StringId);
             if (ownedtarget == null)
             {
                 ownedtarget = new ModRecord();
@@ -891,21 +305,17 @@ namespace KenshiCore.ReverseEngineering
                 ownedtarget.ChangeType = 0;//target.ChangeType;
                 ownedtarget.SetRecordStatus(this.modData.Header!.FileType, "existing");
                 ownedtarget.SetChangeCounter(2);//2 was too low
-                this.modData.Records!.Add(ownedtarget);
+                this.modData.AddRecord(ownedtarget);
             }
             return ownedtarget;
         }
         public void AddRecordAsExisting(ModRecord target)
         {
-            ModRecord? ownedtarget = searchModRecordByStringId(target.StringId);
-            if (ownedtarget != null)
-            {
-                this.modData.Records!.Remove(ownedtarget);
-            }
+            modData.RemoveRecord(target.StringId);
             target.ChangeType = 0;
             target.SetChangeCounter(2);
             target.SetRecordStatus(this.modData.Header!.FileType, "existing");
-            this.modData.Records!.Add(target);
+            modData.AddRecord(target);
         }
 
         public void SetField(ModRecord target, string fieldname, string value)
@@ -932,8 +342,11 @@ namespace KenshiCore.ReverseEngineering
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
-            if (!force && ExtraDataExists(cat, target_cat, source.StringId))
+            if (target.ExtraDataFields == null)
+                target.ExtraDataFields = new();
+            target.ExtraDataFields.TryGetValue(category, out var target_cat);
+            if (!force && (ownedtarget.ExtraDataExists(category,source.StringId)|| target.ExtraDataExists(category,source.StringId))) 
+                //ExtraDataExists(cat, target_cat, source.StringId))
                 return;
             if (cat == null)
             {
@@ -951,7 +364,8 @@ namespace KenshiCore.ReverseEngineering
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
             target.ExtraDataFields!.TryGetValue(category, out var target_cat);
-            if (!force && ExtraDataExists(cat, target_cat, idsource))
+            if (!force && (ownedtarget.ExtraDataExists(category, idsource) || target.ExtraDataExists(category, idsource)))
+                //if (!force && ExtraDataExists(cat, target_cat, idsource))
                 return;
             if (cat == null)
             {
@@ -964,62 +378,39 @@ namespace KenshiCore.ReverseEngineering
         }
         public void RemoveExtraData(ModRecord target, ModRecord source, string category)
         {
-            ModRecord? ownedtarget = EnsureRecordExists(target);
-            if (ownedtarget.ExtraDataFields == null)
-                ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
-            if(cat != null)
+            ModRecord ownedtarget = EnsureRecordExists(target);
+            if (ownedtarget.ExtraDataExists(category, source.StringId))
             {
-                if (cat.ContainsKey(source.StringId))
-                {
-                    cat.Remove(source.StringId);
-                }
+                ownedtarget.ExtraDataFields![category].Remove(source.StringId);
             }
-            if (ExtraDataExists(cat, target_cat, source.StringId))
+            if (target.ExtraDataExists(category, source.StringId))
             {
-                if (cat == null) { 
-                    cat = new Dictionary<string, int[]>();
-                    ownedtarget.ExtraDataFields[category] = cat;
-                }
-                cat[source.StringId] = new int[] { DELETED, DELETED, DELETED };
-                return;
+                if (ownedtarget.ExtraDataFields == null)
+                    ownedtarget.ExtraDataFields = new();
+                if(!ownedtarget.ExtraDataFields.ContainsKey(category))
+                    ownedtarget.ExtraDataFields[category] = new();
+                ownedtarget.ExtraDataFields[category][source.StringId]= new int[] { DELETED, DELETED, DELETED };
             }
-        }
-        private static bool ExtraDataExists(
-            Dictionary<string, int[]>? patchCat, Dictionary<string, int[]>? baseCat, string key)
-        {
-            if (patchCat != null && patchCat.TryGetValue(key, out var p))
-                return !IsDeleted(p);
-
-            if (baseCat != null && baseCat.TryGetValue(key, out var b))
-                return !IsDeleted(b);
-
-            return false;
         }
         public void deleteRecordFromPatch(ModRecord record)
         {
-            var owned = searchModRecordByStringId(record.StringId);
-            if (owned != null)
-            {
-                modData.Records!.Remove(owned);
-            }
+            modData.RemoveRecord(record.StringId);
         }
         public void deleteEmptyRecordFromPatch(ModRecord record)
         {
-            var owned = searchModRecordByStringId(record.StringId);
-            if (owned != null&&owned.GetRecordCompleteness()==0)
+            ModRecord? owned = modData.GetRecordByStringId(record.StringId);
+            if (owned != null && owned.GetRecordCompleteness() == 0)
             {
-                modData.Records!.Remove(owned);
+                modData.RemoveRecord(owned.StringId);
             }
         }
-        
+
         public void deleteRecord(ModRecord record)
         {
-            var owned = searchModRecordByStringId(record.StringId);
+            var owned = modData.GetRecordByStringId(record.StringId);
             if (owned != null)
             {
-                modData.Records!.Remove(owned);
+                modData.RemoveRecord(owned.StringId);
                 if (owned.isNew())
                     return;
             }
@@ -1033,17 +424,16 @@ namespace KenshiCore.ReverseEngineering
         }
         public void EditExtraData(ModRecord target, string category, Func<int, int>[] transformers, Func<int[], bool>? isValid = null)
         {
-            bool exist_at_beginning = searchModRecordByStringId(target.StringId) != null;
+            bool exist_at_beginning = modData.GetRecordByStringId(target.StringId) != null;
+            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
+            if (target_cat == null)
+            {
+                return;
+            }
             ModRecord? ownedtarget = EnsureRecordExists(target);
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
-            if (target_cat == null)
-            {
-                this.modData.Records!.Remove(ownedtarget);
-                return;
-            }
 
             if (cat == null)
             {
@@ -1069,12 +459,8 @@ namespace KenshiCore.ReverseEngineering
             }
             if (!changed && !exist_at_beginning)
             {
-                this.modData.Records!.Remove(ownedtarget);
+                this.modData.RemoveRecord(ownedtarget.StringId);
             }
-        }
-        public ModRecord? searchModRecordByStringId(string stringId)
-        {
-            return this.modData.Records!.Find(r => r.StringId == stringId);
         }
         public List<ModRecord> CloneRecord(ModRecord toclone, int n)
         {
@@ -1084,7 +470,7 @@ namespace KenshiCore.ReverseEngineering
                 ModRecord clone = toclone.deepClone();
                 clone.StringId = $"{GetNextFreeStringIdNumber()}-{this.modname}";
                 clone.ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17;
-                this.modData.Records!.Add(clone);
+                this.modData.AddRecord(clone);
                 clones.Add(clone);
             }
             return clones;
@@ -1094,7 +480,6 @@ namespace KenshiCore.ReverseEngineering
             // Find next free number starting at 10
             int nextId = GetNextFreeStringIdNumber();
 
-            // Build unique StringID like "10-test_animation_patcher.mod"
             string stringId = $"{nextId}-{this.modname}";
 
             // Create new record
@@ -1106,7 +491,7 @@ namespace KenshiCore.ReverseEngineering
                 ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17,//ModRecord.ModTypeCodes.FirstOrDefault(kv => kv.Value == recordType).Key,
                 Id = 0
             };
-            this.modData.Records!.Add(newRecord);
+            this.modData.AddRecord(newRecord);
             return newRecord;
         }
         public void EnsurePlaceholderExists(int recordType)
@@ -1115,31 +500,34 @@ namespace KenshiCore.ReverseEngineering
             if (string.IsNullOrEmpty(recordTypeName))
                 throw new FormatException($"record type code not found: {recordType}");
             // If already exists (same Name), do nothing
-            if (this.GetRecordsByTypeMUTABLE(recordType)!.Any(r => string.Equals(r.Name, recordTypeName)))
+            if (this.modData.GetRecordsByType(recordType)!.Any(r => string.Equals(r.Name, recordTypeName)))
                 return;
 
             ModRecord record = CreateNewRecord(recordType, recordTypeName);
         }
+
+
+        private int _nextFreeStringIdNumber = -1;
         private int GetNextFreeStringIdNumber()
         {
-            var usedNumbers = new HashSet<int>();
-            var regex = new Regex(@"^(\d+)-");
-            foreach (var record in this.modData.Records!)
-            {
-                if (string.IsNullOrEmpty(record.StringId)) continue;
-                var match = regex.Match(record.StringId);
-                if (match.Success && int.TryParse(match.Groups[1].Value, out int num) && (record.GetModName() == this.modname))
-                    usedNumbers.Add(num);
-            }
+            if (_nextFreeStringIdNumber >= 0)
+                return ++_nextFreeStringIdNumber;
+            var regex = new Regex(@"^(\d+)-(.+)$");
             int candidate = 10;
-            while (usedNumbers.Contains(candidate))
-                candidate++;
-            return candidate;
-        }
 
-        public ModRecord searchModRecordByStringIdLocally(string id)
-        {
-            return searchModRecordByStringId(id)!;
+            foreach (string stringId in modData.GetStringIds())
+            {
+                var match = regex.Match(stringId);
+
+                if (!match.Success || !string.Equals(match.Groups[2].Value, modname, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (int.TryParse(match.Groups[1].Value, out int num) && num >= candidate)
+                    candidate = num + 1;
+            }
+
+            _nextFreeStringIdNumber = candidate;
+            return candidate;
         }
         public void SetText(ModRecord record, Func<string, string> modifier)
         {
@@ -1149,7 +537,7 @@ namespace KenshiCore.ReverseEngineering
             {
                 string field = "text" + i;
                 string? textValue = record.GetFieldAsString(field);
-                if (textValue == null || textValue  == "")
+                if (textValue == null || textValue == "")
                     break;
                 ownedtarget.EnsureFieldExist(record, field);
                 ownedtarget.SetField(field, modifier(textValue));
@@ -1159,8 +547,65 @@ namespace KenshiCore.ReverseEngineering
     public class ModData
     {
         public ModHeader? Header { get; set; }
-        public List<ModRecord>? Records { get; set; }
+        private readonly Dictionary<string, ModRecord> _recordsByStringId = new(StringComparer.Ordinal);
+        private readonly Dictionary<int, List<ModRecord>> _recordsByType = new();
         public byte[]? Leftover { get; set; }
+        public IEnumerable<string> GetStringIds() => _recordsByStringId.Keys;
+        public int Count => _recordsByStringId.Count;
+
+        public IEnumerable<ModRecord> GetRecords() => _recordsByStringId.Values;
+        public void AddRecord(ModRecord record)
+        {
+            if (string.IsNullOrEmpty(record.StringId))
+                throw new ArgumentException("Record must have a StringId.", nameof(record));
+            if (_recordsByStringId.TryGetValue(record.StringId, out var existing))
+            {
+                if (ReferenceEquals(existing, record))
+                    return;
+                CoreUtils.Print($"Warning: Replacing existing record with StringId '{record.StringId}'", 1);
+                RemoveRecord(existing.StringId);
+            }
+            _recordsByStringId[record.StringId] = record;
+            if (!_recordsByType.TryGetValue(record.getRecordTypeCode(), out var records))
+            {
+                records = new List<ModRecord>();
+                _recordsByType[record.getRecordTypeCode()] = records;
+            }
+            records.Add(record);
+
+        }
+        public bool RemoveRecord(string stringId)
+        {
+            ModRecord? record = null;
+            bool removed = _recordsByStringId.TryGetValue(stringId, out record);
+            if (record == null)
+                return false;
+            _recordsByStringId.Remove(stringId);
+            if (_recordsByType.TryGetValue(record.getRecordTypeCode(), out var records))
+            {
+                records.Remove(record);
+                if (records.Count == 0)
+                    _recordsByType.Remove(record.getRecordTypeCode());
+            }
+            return true;
+        }
+        public ModRecord? GetRecordByStringId(string stringId)
+        {
+            if (_recordsByStringId.TryGetValue(stringId, out var record))
+                return record;
+            return null;
+        }
+        public IReadOnlyList<ModRecord> GetRecordsByType(string type)
+        {
+            int typeCode = ModRecord.getRecordTypeInt(type);
+            if (typeCode == -1)
+                throw new FormatException($"Invalid patch definition format: '{type}' is not a valid Record Type");
+            return GetRecordsByType(typeCode);
+        }
+        public IReadOnlyList<ModRecord> GetRecordsByType(int type)
+        {
+            return _recordsByType.TryGetValue(type, out var records) ? records : Array.Empty<ModRecord>();
+        }
     }
     public class MergeEntry
     {
@@ -1184,35 +629,5 @@ namespace KenshiCore.ReverseEngineering
             Target = target;
         }
     }
-    public class ModHeader
-    {
-        public int FileType { get; set; }
-        public int ModVersion { get; set; }
-        public string? Author { get; set; } = null;
-        public string? Description { get; set; } = null;
-        public string? Dependencies { get; set; } = null;
-        public string? References { get; set; } = null;
-        public int UnknownInt { get; set; }
-        public int RecordCount { get; set; }
-
-
-        // Only for v17
-        public uint? SaveCount { get; set; }
-        public uint? LastMerge { get; set; }
-        public Dictionary<string, MergeEntry>? MergeEntries { get; set; } = null;
-        public Dictionary<string, DeleteRequest>? DeleteRequests { get; set; } = null;
-
-        public byte[]? Details { get; set; }
-        public byte[]? UnparsedDetails { get; set; }
-        public int DetailsLength { get; set; }
-        public void AddDependency(string modName)
-        {
-            Dependencies = CoreUtils.AddModToList(Dependencies, modName, ReverseEngineer.HARD_STRING_LIMIT);
-        }
-        public void AddReference(string modName)
-        {
-            References = CoreUtils.AddModToList(References, modName, ReverseEngineer.HARD_STRING_LIMIT);
-        }
-    }
 }
-   
+

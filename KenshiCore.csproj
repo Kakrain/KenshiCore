@@ -27,6 +27,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>
+  
+  <ItemGroup>
+   <Content Include="templates\TEMPLATES">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </Content>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="fernandreu.ScintillaNET" Version="4.2.0" />

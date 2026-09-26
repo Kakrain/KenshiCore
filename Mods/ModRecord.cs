@@ -10,25 +10,23 @@ namespace KenshiCore.Mods
 {
     public class ModRecord
     {
-        public int InstanceCount { get; set; }
+        public int UnknownValue { get; set; }
         public int RecordType { get; set; }
         public int Id { get; set; }
         public string Name { get; set; } = "";
         public string StringId { get; set; } = "";
         public int ChangeType { get; set; }
+        private const string sep = ":";
 
-        private HashSet<string>? changed = null;
-        private string sep = ":";
-
-        public Dictionary<string, bool> BoolFields { get; set; } = new();
-        public Dictionary<string, float> FloatFields { get; set; } = new();
-        public Dictionary<string, int> LongFields { get; set; } = new();
-        public Dictionary<string, float[]> Vec3Fields { get; set; } = new();
-        public Dictionary<string, float[]> Vec4Fields { get; set; } = new();
-        public Dictionary<string, string> StringFields { get; set; } = new();
-        public Dictionary<string, string> FilenameFields { get; set; } = new();
-        public Dictionary<string, Dictionary<string, int[]>> ExtraDataFields { get; set; } = new();
-        public List<ModInstance> InstanceFields { get; set; } = new();
+        public Dictionary<string, bool>? BoolFields = null;//new(); { get; set; }
+        public Dictionary<string, float>? FloatFields = null;//new(); { get; set; }
+        public Dictionary<string, int>? LongFields = null;//new(); { get; set; }
+        public Dictionary<string, float[]>? Vec3Fields  = null;//new();{ get; set; }
+        public Dictionary<string, float[]>? Vec4Fields= null;//new(); { get; set; } 
+        public Dictionary<string, string>? StringFields = null;//new(); { get; set; }
+        public Dictionary<string, string>? FilenameFields = null;//new(); { get; set; }
+        public Dictionary<string, Dictionary<string, int[]>>? ExtraDataFields  = null;//new();{ get; set; }
+        public List<ModInstance>? InstanceFields = null;//new();{ get; set; } 
 
         public static readonly Dictionary<string, Func<ModRecord, string>> additionalGetters = new Dictionary<string, Func<ModRecord, string>>
         {
@@ -36,14 +34,16 @@ namespace KenshiCore.Mods
             { "_name_", r => r.Name },
             { "text_", r => 
                 {
-                    StringBuilder sb = new StringBuilder();
+                    StringBuilder sb = new();
                     for (int i = 0; ; i++)
                     {
                         string field = "text" + i;
                         string? textValue = r.GetFieldAsString(field);
                         if (textValue == null || textValue  == "")
                             break;
-                        sb.AppendJoin("|", textValue);
+                        if (i > 0)
+                            sb.Append('|');
+                        sb.Append(textValue);
                     }
                     return sb.ToString();
                 }
@@ -80,14 +80,14 @@ namespace KenshiCore.Mods
                     string textes=Convert.ToString(v)!;
                     var textes_list=textes.Split('|');
 
-                    StringBuilder sb = new StringBuilder();
+                    StringBuilder sb = new();
                     for (int i = 0; ; i++)
                     {
                         string field = "text" + i;
                         if(textes_list.Length > i)
                         {
                             r.ForceEnsureFieldExist(field, "string");
-                            r.SetField(field,textes_list[0]);
+                            r.SetField(field,textes_list[i]);
                         }else if(r.fieldExist(field,"string")){
                             r.SetField(field,"");
                         }
@@ -101,24 +101,17 @@ namespace KenshiCore.Mods
         };
         public override string ToString()
         {
-            //return this.ToString(0);
             return this.Name + " | " + this.StringId + " | " + this.getRecordType() + " | " + this.getChangeType();
         }
-        /*public string ToString(int verbose)
-        {
-            return this.Name + " | " + this.StringId + " | " + this.getRecordType() +((verbose>0)? " | " + this.getChangeType():"");
-        }*/
         public Dictionary<string, int[]>? GetExtraData(string? category)
         {
+            if (ExtraDataFields==null || ExtraDataFields.Count == 0)
+                return null;
             if (category != null)
             {
                 ExtraDataFields.TryGetValue(category, out var cat);
                 return cat;
             }
-
-            if (ExtraDataFields.Count == 0)
-                return null;
-
             // merge all categories
             var merged = new Dictionary<string, int[]>();
 
@@ -132,6 +125,12 @@ namespace KenshiCore.Mods
 
             return merged;
         }
+        public bool ExtraDataExists(string category, string key)
+        {
+            if (ExtraDataFields != null && ExtraDataFields.ContainsKey(category) && ExtraDataFields[category].ContainsKey(key))
+                return !IsDeleted(ExtraDataFields[category][key]);
+            return false;
+        }
         public void DeleteExtraData(string category, string key)
         {
             if (ExtraDataFields == null)
@@ -144,38 +143,52 @@ namespace KenshiCore.Mods
         }
         public bool EnsureFieldExist(ModRecord source, string field)
         {
-            if (source.BoolFields.TryGetValue(field, out bool bVal) && !this.BoolFields.ContainsKey(field))
+            if (source.BoolFields!=null&&source.BoolFields.TryGetValue(field, out bool bVal) && (this.BoolFields==null||!this.BoolFields.ContainsKey(field)))
             {
+                if(this.BoolFields == null)
+                    this.BoolFields = new Dictionary<string, bool>();
                 this.BoolFields[field] = bVal;
                 return true;
             }
-            else if (source.FloatFields.TryGetValue(field, out float fVal) && !this.FloatFields.ContainsKey(field))
+            else if (source.FloatFields!=null&&source.FloatFields.TryGetValue(field, out float fVal) && (this.FloatFields==null||!this.FloatFields.ContainsKey(field)))
             {
+                if(this.FloatFields == null)
+                    this.FloatFields = new Dictionary<string, float>();
                 this.FloatFields[field] = fVal;
                 return true;
             }
-            else if (source.LongFields.TryGetValue(field, out int lVal) && !this.LongFields.ContainsKey(field))
+            else if (source.LongFields!=null&&source.LongFields.TryGetValue(field, out int lVal) && (this.LongFields==null||!this.LongFields.ContainsKey(field)))
             {
+                if(this.LongFields == null)
+                    this.LongFields = new Dictionary<string, int>();
                 this.LongFields[field] = lVal;
                 return true;
             }
-            else if (source.StringFields.TryGetValue(field, out string? sVal) && !this.StringFields.ContainsKey(field))
+            else if (source.StringFields!=null&&source.StringFields.TryGetValue(field, out string? sVal) && (this.StringFields==null||!this.StringFields.ContainsKey(field)))
             {
+                if(this.StringFields == null)
+                    this.StringFields = new Dictionary<string, string>();
                 this.StringFields[field] = sVal;
                 return true;
             }
-            else if (source.FilenameFields.TryGetValue(field, out string? fnVal) && !this.FilenameFields.ContainsKey(field))
+            else if (source.FilenameFields!=null&&source.FilenameFields.TryGetValue(field, out string? fnVal) && (this.FilenameFields==null||!this.FilenameFields.ContainsKey(field)))
             {
+                if(this.FilenameFields == null)
+                    this.FilenameFields = new Dictionary<string, string>();
                 this.FilenameFields[field] = fnVal;
                 return true;
             }
-            else if (source.Vec3Fields.TryGetValue(field, out var v3Val) && !this.Vec3Fields.ContainsKey(field))
+            else if (source.Vec3Fields!=null&&source.Vec3Fields.TryGetValue(field, out var v3Val) && (this.Vec3Fields==null||!this.Vec3Fields.ContainsKey(field)))
             {
+                if(this.Vec3Fields == null)
+                    this.Vec3Fields = new Dictionary<string, float[]>();
                 this.Vec3Fields[field] = (float[])v3Val.Clone();
                 return true;
             }
-            else if (source.Vec4Fields.TryGetValue(field, out var v4Val) && !this.Vec4Fields.ContainsKey(field))
+            else if (source.Vec4Fields!=null&&source.Vec4Fields.TryGetValue(field, out var v4Val) && (this.Vec4Fields==null||!this.Vec4Fields.ContainsKey(field)))
             {
+                if(this.Vec4Fields == null)
+                    this.Vec4Fields = new Dictionary<string, float[]>();
                 this.Vec4Fields[field] = (float[])v4Val.Clone();
                 return true;
             }
@@ -183,37 +196,37 @@ namespace KenshiCore.Mods
         }
         public void DeleteField(string field)
         {
-            if (this.BoolFields.ContainsKey(field))
+            if (this.BoolFields!=null&&this.BoolFields.ContainsKey(field))
             {
                 this.BoolFields.Remove(field);
                 return;
             }
-            else if (this.FloatFields.ContainsKey(field))
+            else if (this.FloatFields!=null&&this.FloatFields.ContainsKey(field))
             {
                 this.FloatFields.Remove(field);
                 return;
             }
-            else if (this.LongFields.ContainsKey(field))
+            else if (this.LongFields!=null&&this.LongFields.ContainsKey(field))
             {
                 this.LongFields.Remove(field);
                 return;
             }
-            else if (this.StringFields.ContainsKey(field))
+            else if (this.StringFields!=null&&this.StringFields.ContainsKey(field))
             {
                 this.StringFields.Remove(field);
                 return;
             }
-            else if (this.FilenameFields.ContainsKey(field))
+            else if (this.FilenameFields!=null&&this.FilenameFields.ContainsKey(field))
             {
                 this.FilenameFields.Remove(field);
                 return;
             }
-            else if (this.Vec3Fields.ContainsKey(field))
+            else if (this.Vec3Fields!=null&&this.Vec3Fields.ContainsKey(field))
             {
                 this.Vec3Fields.Remove(field);
                 return;
             }
-            else if (this.Vec4Fields.ContainsKey(field))
+            else if (this.Vec4Fields!=null&&this.Vec4Fields.ContainsKey(field))
             {
                 this.Vec4Fields.Remove(field);
                 return;
@@ -224,24 +237,38 @@ namespace KenshiCore.Mods
             switch (type)
             {
                 case "bool":
+                    if (this.BoolFields == null)
+                        this.BoolFields = new Dictionary<string, bool>();
                     this.BoolFields[field] = true;
                     break;
                 case "float":
+                    if (this.FloatFields == null)
+                        this.FloatFields = new Dictionary<string, float>();
                     this.FloatFields[field] = 0.0f;
                     break;
                 case "int":
+                    if (this.LongFields == null)
+                        this.LongFields = new Dictionary<string, int>();
                     this.LongFields[field] = 0;
                     break;
                 case "string":
+                    if (this.StringFields == null)
+                        this.StringFields = new Dictionary<string, string>();
                     this.StringFields[field] = "";
                     break;
                 case "filename":
+                    if (this.FilenameFields == null)
+                        this.FilenameFields = new Dictionary<string, string>();
                     this.FilenameFields[field] = "";
                     break;
                 case "vec3field":
+                    if (this.Vec3Fields == null)
+                        this.Vec3Fields = new Dictionary<string, float[]>();
                     this.Vec3Fields[field] = new float[] { 0.0f, 0.0f, 0.0f };
                     break;
                 case "vec4field":
+                    if (this.Vec4Fields == null)
+                        this.Vec4Fields = new Dictionary<string, float[]>();    
                     this.Vec4Fields[field] = new float[] { 0.0f, 0.0f, 0.0f, 0.0f };
                     break;
                 default:
@@ -253,19 +280,19 @@ namespace KenshiCore.Mods
             switch (type)
             {
                 case "bool":
-                    return this.BoolFields.ContainsKey(field);
+                    return this.BoolFields != null && this.BoolFields.ContainsKey(field);
                 case "float":
-                    return this.FloatFields.ContainsKey(field);
+                    return this.FloatFields != null && this.FloatFields.ContainsKey(field);
                 case "int":
-                    return this.LongFields.ContainsKey(field);
+                    return this.LongFields != null && this.LongFields.ContainsKey(field);
                 case "string":
-                    return this.StringFields.ContainsKey(field);
+                    return this.StringFields != null && this.StringFields.ContainsKey(field);
                 case "filename":
-                    return this.FilenameFields.ContainsKey(field);
+                    return this.FilenameFields != null && this.FilenameFields.ContainsKey(field);
                 case "vec3field":
-                    return this.Vec3Fields.ContainsKey(field);
+                    return this.Vec3Fields != null && this.Vec3Fields.ContainsKey(field);
                 case "vec4field":
-                    return this.Vec4Fields.ContainsKey(field);
+                    return this.Vec4Fields != null && this.Vec4Fields.ContainsKey(field);
                 default:
                     throw new ArgumentException($"Unknown record type: {type} available types are: bool,float,int,string,filename,vec3field and vec4field");
             }
@@ -293,6 +320,14 @@ namespace KenshiCore.Mods
             if (FilenameFields != null)
                 foreach (var kv in FilenameFields)
                     fields.Add(kv.Key);
+            if (Vec3Fields != null)
+                foreach (var kv in Vec3Fields)
+                    fields.Add(kv.Key);
+
+            if (Vec4Fields != null)
+                foreach (var kv in Vec4Fields)
+                    fields.Add(kv.Key);
+
             return fields;
         }
         public ModRecord deepClone()
@@ -300,7 +335,7 @@ namespace KenshiCore.Mods
             var copy = new ModRecord
             {
                 StringId = this.StringId,
-                InstanceCount = this.InstanceCount,
+                UnknownValue = this.UnknownValue,
                 RecordType = this.RecordType,
                 Id = this.Id,
                 Name = this.Name,
@@ -308,25 +343,25 @@ namespace KenshiCore.Mods
             };
             copy.BoolFields = this.BoolFields != null
                 ? new Dictionary<string, bool>(this.BoolFields)
-                : new Dictionary<string, bool>();
+                : null;
             copy.FloatFields = this.FloatFields != null
                 ? new Dictionary<string, float>(this.FloatFields)
-                : new Dictionary<string, float>();
+                : null;
             copy.LongFields = this.LongFields != null
                 ? new Dictionary<string, int>(this.LongFields)
-                : new Dictionary<string, int>();
+                : null;
             copy.StringFields = this.StringFields != null
                 ? this.StringFields.ToDictionary(kv => kv.Key, kv => kv.Value)
-                : new Dictionary<string, string>();
+                : null;
             copy.FilenameFields = this.FilenameFields != null
                 ? this.FilenameFields.ToDictionary(kv => kv.Key, kv => kv.Value)
-                : new Dictionary<string, string>();
+                : null;
             copy.Vec3Fields = this.Vec3Fields != null
                 ? this.Vec3Fields.ToDictionary(kv => kv.Key, kv => (float[])kv.Value.Clone())
-                : new Dictionary<string, float[]>();
+                : null;
             copy.Vec4Fields = this.Vec4Fields != null
                 ? this.Vec4Fields.ToDictionary(kv => kv.Key, kv => (float[])kv.Value.Clone())
-                : new Dictionary<string, float[]>();
+                : null;
 
             copy.ExtraDataFields = this.ExtraDataFields != null
                 ? this.ExtraDataFields.ToDictionary(
@@ -335,7 +370,7 @@ namespace KenshiCore.Mods
                         ? kv.Value.ToDictionary(kv2 => kv2.Key, kv2 => (int[])kv2.Value.Clone())
                         : new Dictionary<string, int[]>()
                   )
-                : new Dictionary<string, Dictionary<string, int[]>>();
+                : null;
 
             copy.InstanceFields = this.InstanceFields != null
                 ? this.InstanceFields.Select(inst => new ModInstance
@@ -350,9 +385,9 @@ namespace KenshiCore.Mods
                     Ry = inst.Ry,
                     Rz = inst.Rz,
                     StateCount = inst.StateCount,
-                    States = inst.States != null ? new List<string>(inst.States) : new List<string>()
+                    States = inst.States != null ? new List<string>(inst.States) : null
                 }).ToList()
-                : new List<ModInstance>();
+                : null; 
             return copy;
         }
 
@@ -362,7 +397,6 @@ namespace KenshiCore.Mods
         }
         public int GetRecordCompleteness()
         {
-            if (this == null) return 0;
             int count = 0;
             // Count number of populated fields across the collections you care about
             if (this.BoolFields != null) count += this.BoolFields.Count;
@@ -376,39 +410,176 @@ namespace KenshiCore.Mods
             if (this.InstanceFields != null) count += this.InstanceFields.Count;
             return count;
         }
+        public void CompleteFieldsFrom(ModRecord other)
+        {
+            if (other.BoolFields != null && other.BoolFields.Count > 0)
+            {
+                if (this.BoolFields == null)
+                    this.BoolFields = new Dictionary<string, bool>();
+                foreach (var kv in other.BoolFields)
+                {
+                    if (!this.BoolFields.ContainsKey(kv.Key))
+                        this.BoolFields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.FloatFields != null && other.FloatFields.Count > 0)
+            {
+                if (this.FloatFields == null)
+                    this.FloatFields = new Dictionary<string, float>();
+                foreach (var kv in other.FloatFields)
+                {
+                    if (!this.FloatFields.ContainsKey(kv.Key))
+                        this.FloatFields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.LongFields != null && other.LongFields.Count > 0)
+            {
+                if (this.LongFields == null)
+                    this.LongFields = new Dictionary<string, int>();
+                foreach (var kv in other.LongFields)
+                {
+                    if (!this.LongFields.ContainsKey(kv.Key))
+                        this.LongFields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.Vec3Fields != null && other.Vec3Fields.Count > 0)
+            {
+                if (this.Vec3Fields == null)
+                    this.Vec3Fields = new Dictionary<string, float[]>();
+                foreach (var kv in other.Vec3Fields)
+                {
+                    if (!this.Vec3Fields.ContainsKey(kv.Key))
+                        this.Vec3Fields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.Vec4Fields != null && other.Vec4Fields.Count > 0)
+            {
+                if (this.Vec4Fields == null)
+                    this.Vec4Fields = new Dictionary<string, float[]>();
+                foreach (var kv in other.Vec4Fields)
+                {
+                    if (!this.Vec4Fields.ContainsKey(kv.Key))
+                        this.Vec4Fields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.StringFields != null && other.StringFields.Count > 0)
+            {
+                if (this.StringFields == null)
+                    this.StringFields = new Dictionary<string, string>();
+                foreach (var kv in other.StringFields)
+                {
+                    if (!this.StringFields.ContainsKey(kv.Key))
+                        this.StringFields[kv.Key] = kv.Value;
+                }
+            }
+            if (other.FilenameFields != null && other.FilenameFields.Count > 0)
+            {
+                if (this.FilenameFields == null)
+                    this.FilenameFields = new Dictionary<string, string>();
+                foreach (var kv in other.FilenameFields)
+                {
+                    if (!this.FilenameFields.ContainsKey(kv.Key))
+                        this.FilenameFields[kv.Key] = kv.Value;
+                }
+            }
+        }
         public void applyChangesFrom(ModRecord other)
         {
-            foreach (var kv in other.BoolFields)
-                this.BoolFields[kv.Key] = kv.Value;
-            foreach (var kv in other.FloatFields)
-                this.FloatFields[kv.Key] = kv.Value;
-            foreach (var kv in other.LongFields)
-                this.LongFields[kv.Key] = kv.Value;
-            foreach (var kv in other.Vec3Fields)
-                this.Vec3Fields[kv.Key] = (float[])kv.Value.Clone();
-            foreach (var kv in other.Vec4Fields)
-                this.Vec4Fields[kv.Key] = (float[])kv.Value.Clone();
-            foreach (var kv in other.StringFields)
-                this.StringFields[kv.Key] = kv.Value;
-            foreach (var kv in other.FilenameFields)
-                this.FilenameFields[kv.Key] = kv.Value;
-
-            foreach (var kv in other.ExtraDataFields)
+            if(other.BoolFields!=null&&other.BoolFields.Count > 0)
             {
-                if (!this.ExtraDataFields.ContainsKey(kv.Key))
-                    this.ExtraDataFields[kv.Key] = new Dictionary<string, int[]>();
+                if(this.BoolFields == null)
+                    this.BoolFields = new Dictionary<string, bool>();
+                foreach (var kv in other.BoolFields)
+                    this.BoolFields[kv.Key] = kv.Value;
+            }
+            if(other.FloatFields != null && other.FloatFields.Count > 0)
+            {
+                if (this.FloatFields == null)
+                    this.FloatFields = new Dictionary<string, float>();
+                foreach (var kv in other.FloatFields)
+                    this.FloatFields[kv.Key] = kv.Value;
+            }
+            if(other.LongFields != null && other.LongFields.Count > 0)
+            {
+                if (this.LongFields == null)
+                    this.LongFields = new Dictionary<string, int>();
+                foreach (var kv in other.LongFields)
+                    this.LongFields[kv.Key] = kv.Value;
+            }
+            if(other.Vec3Fields != null && other.Vec3Fields.Count > 0)
+            {
+                if (this.Vec3Fields == null)
+                    this.Vec3Fields = new Dictionary<string, float[]>();
+                foreach (var kv in other.Vec3Fields)
+                    this.Vec3Fields[kv.Key] = (float[])kv.Value.Clone();
+            }
+            if(other.Vec4Fields != null && other.Vec4Fields.Count > 0)
+            {
+                if (this.Vec4Fields == null)
+                    this.Vec4Fields = new Dictionary<string, float[]>();
+                foreach (var kv in other.Vec4Fields)
+                    this.Vec4Fields[kv.Key] = (float[])kv.Value.Clone();
+            }
+            if(other.StringFields != null && other.StringFields.Count > 0)
+            {
+                if (this.StringFields == null)
+                    this.StringFields = new Dictionary<string, string>();
+                foreach (var kv in other.StringFields)
+                    this.StringFields[kv.Key] = kv.Value;
+            }
+            if(other.FilenameFields != null && other.FilenameFields.Count > 0)
+            {
+                if (this.FilenameFields == null)
+                    this.FilenameFields = new Dictionary<string, string>();
+                foreach (var kv in other.FilenameFields)
+                    this.FilenameFields[kv.Key] = kv.Value;
+            }
+            if(other.ExtraDataFields != null && other.ExtraDataFields.Count > 0)
+            {
+                if(this.ExtraDataFields == null)
+                    this.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
 
-                foreach (var itemKv in kv.Value)
+                foreach (var kv in other.ExtraDataFields)
                 {
-                    if (IsDeleted(itemKv.Value))
+                    if (!this.ExtraDataFields.ContainsKey(kv.Key))
+                        this.ExtraDataFields[kv.Key] = new Dictionary<string, int[]>();
+
+                    foreach (var itemKv in kv.Value)
                     {
-                        this.ExtraDataFields[kv.Key].Remove(itemKv.Key);
-                    }
-                    else
-                    {
-                        this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
+                        if (IsDeleted(itemKv.Value))
+                        {
+                            this.ExtraDataFields[kv.Key].Remove(itemKv.Key);
+                        }
+                        else
+                        {
+                            this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
+                        }
                     }
                 }
+            }
+            if (other.InstanceFields != null && other.InstanceFields.Count > 0)
+            {
+                if (this.InstanceFields == null)
+                    this.InstanceFields = new List<ModInstance>();
+
+                this.InstanceFields.AddRange(
+                    other.InstanceFields.Select(inst => new ModInstance
+                    {
+                        Id = inst.Id,
+                        Target = inst.Target,
+                        Tx = inst.Tx,
+                        Ty = inst.Ty,
+                        Tz = inst.Tz,
+                        Rw = inst.Rw,
+                        Rx = inst.Rx,
+                        Ry = inst.Ry,
+                        Rz = inst.Rz,
+                        StateCount = inst.StateCount,
+                        States = inst.States != null
+                            ? new List<string>(inst.States)
+                            : new List<string>()
+                    })
+                );
             }
         }
         public static bool IsDeleted(int[] value)
@@ -418,63 +589,11 @@ namespace KenshiCore.Mods
                    value[1] == ReverseEngineer.DELETED &&
                    value[2] == ReverseEngineer.DELETED;
         }
-        public Dictionary<string, bool> GetFilenameFieldSnapshot()
-        {
-            var snapshot = new Dictionary<string, bool>(StringComparer.Ordinal);
-
-            foreach (var kv in FilenameFields)
-            {
-                snapshot[kv.Key] = !string.IsNullOrEmpty(kv.Value);
-            }
-
-            return snapshot;
-        }
-        public void applyChangesCarefully(ModRecord other)
-        {
-            foreach (var kv in other.BoolFields)
-                this.BoolFields[kv.Key] = kv.Value;
-            foreach (var kv in other.FloatFields)
-                this.FloatFields[kv.Key] = kv.Value;
-            foreach (var kv in other.LongFields)
-                this.LongFields[kv.Key] = kv.Value;
-            foreach (var kv in other.Vec3Fields)
-                this.Vec3Fields[kv.Key] = (float[])kv.Value.Clone();
-            foreach (var kv in other.Vec4Fields)
-                this.Vec4Fields[kv.Key] = (float[])kv.Value.Clone();
-            foreach (var kv in other.StringFields) {
-                if (!string.IsNullOrEmpty(kv.Value)) 
-                    this.StringFields[kv.Key] = kv.Value;
-            }
-            foreach (var kv in other.FilenameFields) { 
-                if (!string.IsNullOrEmpty(kv.Value)||!this.FilenameFields.ContainsKey(kv.Key))
-                {
-                    this.FilenameFields[kv.Key] = kv.Value;
-                }
-            }
-            foreach (var kv in other.ExtraDataFields)
-            {
-                if (!this.ExtraDataFields.ContainsKey(kv.Key))
-                    this.ExtraDataFields[kv.Key] = new Dictionary<string, int[]>();
-
-                foreach (var itemKv in kv.Value)
-                {
-                    this.ExtraDataFields[kv.Key][itemKv.Key] = (int[])itemKv.Value.Clone();
-                }
-            }
-        }
-        private void getChangedSpecificFields<TValue>(Dictionary<string, TValue>? fields, string name)
-        {
-            if (fields == null)
-                return;
-            foreach (var f in fields)
-            {
-                changed!.Add(name + sep + f.Key);
-            }
-        }
         public bool isExtraDataOfThis(ModRecord other, string? category = null, int[]? variables = null)
         {
             IEnumerable<Dictionary<string, int[]>> dicts;
-
+            if(ExtraDataFields == null || ExtraDataFields.Count == 0)
+                return false;
             if (category == null)
                 dicts = ExtraDataFields.Values;
             else if (ExtraDataFields.TryGetValue(category, out var cat))
@@ -495,6 +614,8 @@ namespace KenshiCore.Mods
         public bool hasThisAsExtraData(ModRecord other, string? category = null, int[]? variables = null)
         {
             IEnumerable<Dictionary<string, int[]>> dicts;
+            if(other.ExtraDataFields == null || other.ExtraDataFields.Count == 0)
+                return false;
 
             if (category == null)
                 dicts = other.ExtraDataFields.Values;
@@ -515,55 +636,35 @@ namespace KenshiCore.Mods
             return false;
         }
 
-        public HashSet<string> getChangedFields()
-        {
-            if (changed != null)
-            {
-                return changed;
-            }
-            changed = new HashSet<string>();
-
-
-            getChangedSpecificFields(this.BoolFields, "bool");
-            getChangedSpecificFields(this.FloatFields, "float");
-            getChangedSpecificFields(this.LongFields, "long");
-            getChangedSpecificFields(this.Vec3Fields, "vec3");
-            getChangedSpecificFields(this.Vec4Fields, "vec4");
-            getChangedSpecificFields(this.StringFields, "string");
-            getChangedSpecificFields(this.FilenameFields, "filename");
-            getChangedSpecificFields(this.ExtraDataFields, "extradata");
-
-            return changed;
-        }
         public bool isFieldChanged(string field,string? type=null)
         {
             if (type == "bool")
             {
-                return this.BoolFields.ContainsKey(field);
+                return this.BoolFields!=null&&this.BoolFields.ContainsKey(field);
             }
             if (type == "float")
             {
-                return this.FloatFields.ContainsKey(field);
+                return this.FloatFields!=null&&this.FloatFields.ContainsKey(field);
             }
             if (type == "long")
             {
-                return this.LongFields.ContainsKey(field);
+                return this.LongFields!=null&&this.LongFields.ContainsKey(field);
             }
             if (type == "vec3")
             {
-                return this.Vec3Fields.ContainsKey(field);
+                return this.Vec3Fields!=null&&this.Vec3Fields.ContainsKey(field);
             }
             if (type == "vec4")
             {
-                return this.Vec4Fields.ContainsKey(field);
+                return this.Vec4Fields!=null&&this.Vec4Fields.ContainsKey(field);
             }
             if (type == "string")
             {
-                return this.StringFields.ContainsKey(field);
+                return this.StringFields!=null&&this.StringFields.ContainsKey(field);
             }
             if (type == "filename")
             {
-                return this.FilenameFields.ContainsKey(field);
+                return this.FilenameFields!=null&&this.FilenameFields.ContainsKey(field);
             }
             if (type == null)
             {
@@ -612,129 +713,7 @@ namespace KenshiCore.Mods
         {
             return this.RecordType;
         }
-        public List<(string, Color)> getNameOnlyAsBlock()
-        {
-            var blocks = new List<(string, Color)>();
-            blocks.Add(($"--- RECORD: {this.Name} ({this.getRecordType()}) ---", Color.Orange));
-            blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
-            return blocks;
-        }
-        public List<(string, Color)> getDataAsBlock(List<string>? fieldFilter = null)
-        {
-            var blocks = new List<(string, Color)>();
-            // Record header
-            blocks.Add(($"--- RECORD: {this.Name} ({this.getRecordType()}) ---", Color.Orange));
-            blocks.Add(($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}", Color.Gray));
-
-            bool filterActive = fieldFilter != null && fieldFilter.Count > 0;
-
-            bool ShouldInclude(string fieldName) =>
-            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.Ordinal));
-
-            // Basic fields
-            foreach (var kv in this.BoolFields)
-                if (ShouldInclude(kv.Key))
-                    blocks.Add(($"Bool: {kv.Key} = {kv.Value}", Color.LightCyan));
-
-            foreach (var kv in this.FloatFields)
-                if (ShouldInclude(kv.Key))
-                    blocks.Add(($"Float: {kv.Key} = {kv.Value}", Color.LightCyan));
-
-            foreach (var kv in this.LongFields)
-                if (ShouldInclude(kv.Key))
-                    blocks.Add(($"Long: {kv.Key} = {kv.Value}", Color.LightCyan));
-
-            foreach (var kv in this.StringFields)
-                if (ShouldInclude(kv.Key))
-                    blocks.Add(($"String: {kv.Key} = {kv.Value}", Color.LightYellow));
-
-            foreach (var kv in this.FilenameFields)
-                if (ShouldInclude(kv.Key))
-                    blocks.Add(($"Filename: {kv.Key} = {kv.Value}", Color.LightPink));
-
-            if (fieldFilter != null)
-                return blocks;
-            // ExtraData
-            if (this.ExtraDataFields != null)
-            {
-                foreach (var cat in this.ExtraDataFields)
-                {
-                    blocks.Add(($"ExtraData Category: {cat.Key}", Color.LightSalmon));
-                    foreach (var item in cat.Value)
-                        blocks.Add(($"  {item.Key} = [{string.Join(",", item.Value)}]", Color.LightSalmon));
-                }
-            }
-
-            // Instances
-            if (this.InstanceFields != null)
-            {
-                foreach (var inst in this.InstanceFields)
-                {
-                    blocks.Add(($"Instance: Id={inst.Id}, Target={inst.Target}, Pos=({inst.Tx},{inst.Ty},{inst.Tz}), Rot=({inst.Rx},{inst.Ry},{inst.Rz},{inst.Rw})", Color.LightGray));
-                    if (inst.States != null && inst.States.Count > 0)
-                        blocks.Add(($"  States: {string.Join(",", inst.States)}", Color.LightGray));
-                }
-            }
-            return blocks;
-        }
-        public string getDataAsString(List<string>? fieldFilter = null)
-        {
-            StringBuilder sb = new StringBuilder();
-            // Record header
-            sb.AppendLine($"--- RECORD: {this.Name} ({this.getRecordType()}) ---");
-            sb.AppendLine($"ID: {this.Id}, StringID: {this.StringId}, ChangeType: {this.getChangeType()}");
-
-            bool filterActive = fieldFilter != null && fieldFilter.Count > 0;
-
-            bool ShouldInclude(string fieldName) =>
-            !filterActive || fieldFilter!.Any(f => f.Equals(fieldName, StringComparison.Ordinal));
-
-            // Basic fields
-            foreach (var kv in this.BoolFields)
-                if (ShouldInclude(kv.Key))
-                    sb.AppendLine($"Bool: {kv.Key} = {kv.Value}");
-
-            foreach (var kv in this.FloatFields)
-                if (ShouldInclude(kv.Key))
-                    sb.AppendLine($"Float: {kv.Key} = {kv.Value}");
-
-            foreach (var kv in this.LongFields)
-                if (ShouldInclude(kv.Key))
-                    sb.AppendLine($"Long: {kv.Key} = {kv.Value}");
-
-            foreach (var kv in this.StringFields)
-                if (ShouldInclude(kv.Key))
-                    sb.AppendLine($"String: {kv.Key} = {kv.Value}");
-
-            foreach (var kv in this.FilenameFields)
-                if (ShouldInclude(kv.Key))
-                    sb.AppendLine($"Filename: {kv.Key} = {kv.Value}");
-
-            if (fieldFilter != null)
-                return sb.ToString();
-            // ExtraData
-            if (this.ExtraDataFields != null)
-            {
-                foreach (var cat in this.ExtraDataFields)
-                {
-                    sb.AppendLine($"ExtraData Category: {cat.Key}");
-                    foreach (var item in cat.Value)
-                        sb.AppendLine($"  {item.Key} = [{string.Join(",", item.Value)}]");
-                }
-            }
-
-            // Instances
-            if (this.InstanceFields != null)
-            {
-                foreach (var inst in this.InstanceFields)
-                {
-                    sb.AppendLine($"Instance: Id={inst.Id}, Target={inst.Target}, Pos=({inst.Tx},{inst.Ty},{inst.Tz}), Rot=({inst.Rx},{inst.Ry},{inst.Rz},{inst.Rw})");
-                    if (inst.States != null && inst.States.Count > 0)
-                        sb.AppendLine($"  States: {string.Join(",", inst.States)}");
-                }
-            }
-            return sb.ToString();
-        }
+        
         public bool isNew()
         {
             return (ChangeType & 1) == 0;
@@ -745,8 +724,7 @@ namespace KenshiCore.Mods
             string binary = Convert.ToString(ChangeType, 2).PadLeft(32, '0');
 
             // First 4 groups (first 20 bits) in groups of 4
-            string first3Groups = string.Join(" | ", Enumerable.Range(0, 3)
-                .Select(i => binary.Substring(i * 4, 4)));
+            //string first3Groups = string.Join(" | ", Enumerable.Range(0, 3).Select(i => binary.Substring(i * 4, 4)));
 
             // Groups 6 + 7 (bits 20–27) = ChangeCounter
             string changeCounterBits = binary.Substring(12, 16);
@@ -765,14 +743,15 @@ namespace KenshiCore.Mods
                 result += " (Name Changed)";
 
             // Append REMOVED if applicable
-            if (this.BoolFields.TryGetValue("REMOVED", out var value) && value)
+            if(this.isRemoved())
                 result += " REMOVED";
+
 
             return result;
         }
         public bool isRemoved()
         {
-            return this.BoolFields.TryGetValue("REMOVED", out var value) && value;
+            return this.BoolFields!=null&&this.BoolFields.TryGetValue("REMOVED", out var value) && value;
         }
         public void SetChangeCounter(int newValue)
         {
@@ -790,18 +769,13 @@ namespace KenshiCore.Mods
             // Convert back to int
             ChangeType = Convert.ToInt32(new string(binary), 2);
         }
-        public void AddToChangeCounter(int delta)
+        public void SetAsNew(int filetype)
         {
-            // Extract current counter
-            string binary = Convert.ToString(ChangeType, 2).PadLeft(32, '0');
-            string changeCounterBits = binary.Substring(12, 16);
-            int current = Convert.ToInt32(changeCounterBits, 2);
-
-            // Add and clamp to 0–65535
-            int newValue = Math.Clamp(current + delta, 0, 65535);
-
-            // Reuse the SetChangeCounter logic
-            SetChangeCounter(newValue);
+            SetRecordStatus(filetype, "new");
+        }
+        public void SetAsExisting(int filetype)
+        {
+            SetRecordStatus(filetype, "existing");
         }
         public void SetRecordStatus(int fileType, string status)
         {
@@ -813,7 +787,7 @@ namespace KenshiCore.Mods
 
             string newLastGroup = lastGroup; // default keep existing
 
-            switch (status.ToLower())
+            switch (status.ToLowerInvariant())
             {
                 case "existing":
                     newLastGroup = "0001";
@@ -842,7 +816,8 @@ namespace KenshiCore.Mods
                 binary[28 + i] = newLastGroup[i];
 
             // Convert back to int
-            ChangeType = Convert.ToInt32(new string(binary), 2);
+            ChangeType = unchecked((int)Convert.ToUInt32(new string(binary), 2));
+            //ChangeType = Convert.ToInt32(new string(binary), 2);
         }
         public static string GetModNameFromId(string stringId)
         {
@@ -904,10 +879,10 @@ namespace KenshiCore.Mods
 
         public bool HasField(string field)
         {
-            return BoolFields.ContainsKey(field) || FloatFields.ContainsKey(field) ||
-                   LongFields.ContainsKey(field) || Vec3Fields.ContainsKey(field) ||
-                   Vec4Fields.ContainsKey(field) || StringFields.ContainsKey(field) ||
-                   FilenameFields.ContainsKey(field);
+            return (BoolFields!=null&&BoolFields.ContainsKey(field)) || (FloatFields!=null&&FloatFields.ContainsKey(field)) ||
+                   (LongFields!=null&&LongFields.ContainsKey(field)) || (Vec3Fields!=null&&Vec3Fields.ContainsKey(field)) ||
+                   (Vec4Fields!=null&&Vec4Fields.ContainsKey(field)) || (StringFields!=null&&StringFields.ContainsKey(field)) ||
+                   (FilenameFields!=null&&FilenameFields.ContainsKey(field));
         }
         private bool TrySetVector(Dictionary<string, float[]> dict, string key, string value, int length)
         {
@@ -917,8 +892,10 @@ namespace KenshiCore.Mods
             var result = new float[length];
             for (int i = 0; i < length; i++)
             {
-                if (!float.TryParse(parts[i], out result[i]))
+                if (!float.TryParse(parts[i],NumberStyles.Float,CultureInfo.InvariantCulture, out result[i]))
                     return false;
+                //if (!float.TryParse(parts[i], out result[i]))
+
             }
             dict[key] = result;
             return true;
@@ -937,13 +914,13 @@ namespace KenshiCore.Mods
             additionalGetters.TryGetValue(field, out var fieldfunc);
             if (fieldfunc != null)
                 return fieldfunc(this);
-            if (this.FloatFields.TryGetValue(field, out float f)) return f;
-            if (this.LongFields.TryGetValue(field, out int l)) return l;
-            if (this.BoolFields.TryGetValue(field, out bool b)) return b;
-            if (this.StringFields.TryGetValue(field, out string? s)) return s;
-            if (this.FilenameFields.TryGetValue(field, out string? fn)) return fn;
-            if (this.Vec3Fields.TryGetValue(field, out var v3)) return v3.Length > 0 ? v3[0] : 0f;
-            if (this.Vec4Fields.TryGetValue(field, out var v4)) return v4.Length > 0 ? v4[0] : 0f;
+            if (this.FloatFields!=null&&this.FloatFields.TryGetValue(field, out float f)) return f;
+            if (this.LongFields!=null&&this.LongFields.TryGetValue(field, out int l)) return l;
+            if (this.BoolFields!=null&&this.BoolFields.TryGetValue(field, out bool b)) return b;
+            if (this.StringFields!=null&&this.StringFields.TryGetValue(field, out string? s)) return s;
+            if (this.FilenameFields!=null&&this.FilenameFields.TryGetValue(field, out string? fn)) return fn;
+            if (this.Vec3Fields != null && this.Vec3Fields.TryGetValue(field, out var v3)) return v3; //v3.Length > 0 ? v3[0] : 0f;
+            if (this.Vec4Fields != null && this.Vec4Fields.TryGetValue(field, out var v4)) return v4;//v4.Length > 0 ? v4[0] : 0f;
 
             return null;
         }
@@ -956,37 +933,41 @@ namespace KenshiCore.Mods
                 return;
             }
 
-            if (BoolFields.ContainsKey(field))
+            if (BoolFields!=null&&BoolFields.ContainsKey(field))
             {
                 TrySet(BoolFields, field, value, bool.TryParse);
                 return;
             }
-            if (FloatFields.ContainsKey(field))
+            if (FloatFields!=null&&FloatFields.ContainsKey(field))
             {
                 TrySet(FloatFields, field, value, (string s, out float result) =>float.TryParse(s,NumberStyles.Float, CultureInfo.InvariantCulture,out result));
                 return;
             }
-            if (LongFields.ContainsKey(field))
+            if (LongFields!=null&&LongFields.ContainsKey(field))
             {
                 TrySet(LongFields, field, value, int.TryParse);
                 return;
             }
-            if (Vec3Fields.ContainsKey(field))
+            if (Vec3Fields != null && Vec3Fields.ContainsKey(field))
             {
-                TrySetVector(Vec3Fields, field, value, 3);
+                //TrySetVector(Vec3Fields, field, value, 3);
+                if (!TrySetVector(Vec3Fields, field, value, 3))
+                    throw new FormatException($"invalid value for field: {field}={value} on record {this.Name} ({this.StringId})");
                 return;
             }
-            if (Vec4Fields.ContainsKey(field))
+            if (Vec4Fields != null && Vec4Fields.ContainsKey(field))
             {
-                TrySetVector(Vec4Fields, field, value, 4);
+                //TrySetVector(Vec4Fields, field, value, 4);
+                if (!TrySetVector(Vec4Fields, field, value, 4))
+                    throw new FormatException($"invalid value for field: {field}={value} on record {this.Name} ({this.StringId})");
                 return;
             }
-            if (StringFields.ContainsKey(field))
+            if (StringFields != null && StringFields.ContainsKey(field))
             {
                 StringFields[field] = value;
                 return;
             }
-            if (FilenameFields.ContainsKey(field))
+            if (FilenameFields != null && FilenameFields.ContainsKey(field))
             {
                 FilenameFields[field] = value;
                 return;
@@ -1003,19 +984,19 @@ namespace KenshiCore.Mods
             additionalGetters.TryGetValue(field, out var fieldfunc);
             if (fieldfunc != null)
                 return fieldfunc(this);
-            if (BoolFields.ContainsKey(field))
+            if (BoolFields != null && BoolFields.ContainsKey(field))
                 return BoolFields.GetValueOrDefault(field).ToString();
-            if (FloatFields.ContainsKey(field))
-                return FloatFields.GetValueOrDefault(field).ToString();
-            if (LongFields.ContainsKey(field))
+            if (FloatFields != null && FloatFields.TryGetValue(field, out var f))
+                return f.ToString(CultureInfo.InvariantCulture);
+            if (LongFields != null && LongFields.ContainsKey(field))
                 return LongFields.GetValueOrDefault(field).ToString();
-            if (Vec3Fields.ContainsKey(field))
-                return Vec3Fields.GetValueOrDefault(field)!.ToString();
-            if (Vec4Fields.ContainsKey(field))
-                return Vec4Fields.GetValueOrDefault(field)!.ToString();
-            if (StringFields.ContainsKey(field))
+            if (Vec3Fields != null && Vec3Fields.TryGetValue(field, out var v3))
+                return string.Join(",", v3.Select(x => x.ToString(CultureInfo.InvariantCulture)));
+            if (Vec4Fields != null && Vec4Fields.TryGetValue(field, out var v4))
+                return string.Join(",", v4.Select(x => x.ToString(CultureInfo.InvariantCulture)));
+            if (StringFields != null && StringFields.ContainsKey(field))
                 return StringFields.GetValueOrDefault(field)!.ToString();
-            if (FilenameFields.ContainsKey(field))
+            if (FilenameFields != null && FilenameFields.ContainsKey(field))
                 return FilenameFields.GetValueOrDefault(field)!.ToString();
             return null;
         }
