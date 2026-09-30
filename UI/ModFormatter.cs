@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography.Xml;
 using System.Text;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -46,10 +47,10 @@ namespace KenshiCore.UI
                     blocks.Add(($"Author: {data.Header.Author}", Color.LightGreen));
                 if (!string.IsNullOrEmpty(data.Header.Description))
                     blocks.Add(($"Description: {data.Header.Description}", Color.LightGreen));
-                if (!string.IsNullOrEmpty(data.Header.Dependencies))
-                    blocks.Add(($"Dependencies: {data.Header.Dependencies}", Color.LightCyan));
-                if (!string.IsNullOrEmpty(data.Header.References))
-                    blocks.Add(($"References: {data.Header.References}", Color.LightCyan));
+                if (!data.Header.isDependenciesNull())//!string.IsNullOrEmpty(data.Header.Dependencies))
+                    blocks.Add(($"Dependencies: {data.Header.GetDependencies()}", Color.LightCyan));
+                if (!data.Header.isReferencesNull())
+                    blocks.Add(($"References: {data.Header.GetReferences()}", Color.LightCyan));
                 blocks.Add(($"RecordCount: {data.Count}", Color.Gray));
             }
             return blocks;
@@ -68,10 +69,10 @@ namespace KenshiCore.UI
                     sb.AppendLine(($"Author: {data.Header.Author}"));
                 if (!string.IsNullOrEmpty(data.Header.Description))
                     sb.AppendLine(($"Description: {data.Header.Description}"));
-                if (!string.IsNullOrEmpty(data.Header.Dependencies))
-                    sb.AppendLine(($"Dependencies: {data.Header.Dependencies}"));
-                if (!string.IsNullOrEmpty(data.Header.References))
-                    sb.AppendLine(($"References: {data.Header.References}"));
+                if (!data.Header.isDependenciesNull())
+                    sb.AppendLine(($"Dependencies: {data.Header.GetDependencies()}"));//string.Join(",",data.Header.Dependencies)
+                if (!data.Header.isReferencesNull())
+                    sb.AppendLine(($"References: {data.Header.GetReferences()}"));//string.Join(",",data.Header.References)
                 sb.AppendLine(($"RecordCount: {data.Count}"));
             }
             return sb.ToString();

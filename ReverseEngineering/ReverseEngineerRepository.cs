@@ -46,6 +46,7 @@ namespace KenshiCore.ReverseEngineering
             if (ignoreKenshiFixer&&_ignoredModNames.Contains(modName))
                 return false; // silently ignore
             _reverseEngineers[modName] = re;
+            //re.setModname(modName);
             _loadOrder.Add(modName);
             return true;
         }
@@ -183,6 +184,49 @@ namespace KenshiCore.ReverseEngineering
             }
             return null;
         }
+        public void ReloadMod(string path, bool preferUnpatched = false)
+        {
+            string modName = Path.GetFileName(path);
+
+            if (!_reverseEngineers.ContainsKey(modName))
+                return;
+
+            var re = LoadMod(path, preferUnpatched);
+
+            if (re == null)
+                return;
+
+            _reverseEngineers[modName] = re;
+            _mergedByTypeAndId.Clear();
+        }
+        public ReverseEngineer? LoadMod(string path, bool preferUnpatched = false)
+        {
+            string modName = Path.GetFileName(path);
+            var re = new ReverseEngineer(modName);
+
+            try
+            {
+                string dir = Path.GetDirectoryName(path)!;
+                string unpatchedPath = Path.Combine(dir, Path.GetFileNameWithoutExtension(modName) + ".unpatched");
+
+                if (preferUnpatched && File.Exists(unpatchedPath))
+                {
+                    re.LoadModFile(unpatchedPath);
+                }
+                else
+                {
+                    re.LoadModFile(path);
+                }
+            }
+            catch (UnsupportedModFileException ex)
+            {
+                CoreUtils.Print( $"Error loading mod '{modName}' at '{path}': {ex.Message}");
+                return null;
+            }
+
+            return re;
+        }
+        /*
         public void ReloadMod(string path,bool preferUnpatched=false)
         {
             string modName = Path.GetFileName(path);
@@ -190,8 +234,7 @@ namespace KenshiCore.ReverseEngineering
             if (!_reverseEngineers.ContainsKey(modName))
                 return;
 
-            var re = new ReverseEngineer();
-
+            var re = new ReverseEngineer(modName);
             try
             {
                 string dir = Path.GetDirectoryName(path)!;
@@ -204,6 +247,7 @@ namespace KenshiCore.ReverseEngineering
                 {
                     re.LoadModFile(path);
                 }
+                
             }
             catch (UnsupportedModFileException ex)
             {
@@ -214,7 +258,7 @@ namespace KenshiCore.ReverseEngineering
 
             _reverseEngineers[modName] = re;
             _mergedByTypeAndId.Clear();
-        }
+        }*/
         // Clear all loaded ReverseEngineers
         public void Clear()
         {
@@ -338,7 +382,7 @@ namespace KenshiCore.ReverseEngineering
                 if (string.IsNullOrEmpty(path))
                     continue;
 
-                var re = new ReverseEngineer();
+                var re = new ReverseEngineer(kv.Key);
                 if (!re.LoadModFile(path))
                 {
                     CoreUtils.Print($"Failed to load mod file for {kv.Key} at {path}");

@@ -1,4 +1,5 @@
 ﻿using KenshiCore.ReverseEngineering;
+using KenshiCore.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,9 +15,18 @@ namespace KenshiCore.Mods
         public int RecordType { get; set; }
         public int Id { get; set; }
         public string Name { get; set; } = "";
-        public string StringId { get; set; } = "";
+        public string StringId { get; private set; } = "";
         public int ChangeType { get; set; }
         private const string sep = ":";
+        public void SetStringId(string strid)
+        {
+            /*if (string.IsNullOrWhiteSpace(strid))
+                throw new ArgumentException("StringId cannot be null or empty.", nameof(strid));
+           */
+            if (strid.EndsWith("-", StringComparison.Ordinal))
+                CoreUtils.Print($"Warning: Malformed StringId: '{strid}'");
+            this.StringId = strid;
+        }
 
         public Dictionary<string, bool>? BoolFields = null;//new(); { get; set; }
         public Dictionary<string, float>? FloatFields = null;//new(); { get; set; }

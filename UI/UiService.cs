@@ -14,6 +14,16 @@ namespace KenshiCore.UI
                 return dialog.SelectedPath;
             return null;
         }
+        public static bool ShowYesNoQuestion(string message, string caption = "Question")
+        {
+            var result = MessageBox.Show(
+                message,
+                caption,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            return result == DialogResult.Yes;
+        }
         public static void ShowMessage(string message, string caption = "", MessageBoxIcon icon = MessageBoxIcon.None)
         {
             var owner = Form.ActiveForm ?? (Application.OpenForms.Count > 0 ? Application.OpenForms[0] : null);
@@ -79,15 +89,6 @@ namespace KenshiCore.UI
             };
 
             layout.Controls.Add(textBox, 1, 0);
-            /*var label = new Label
-            {
-                Text = message,
-                Dock = DockStyle.Fill,
-                AutoSize = true
-            };
-
-            layout.Controls.Add(label, 1, 0);
-            */
             var ok = new Button
             {
                 Text = "OK",

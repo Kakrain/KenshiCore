@@ -36,10 +36,15 @@ namespace KenshiCore.ReverseEngineering
         }
         public uint ReadUInt32()
         {
-            uint value = BinaryPrimitives.ReadUInt32LittleEndian(
-                _data.Slice(_position, 4));
+            uint value = BinaryPrimitives.ReadUInt32LittleEndian(_data.Slice(_position, 4));
 
             _position += 4;
+            return value;
+        }
+        public long ReadLong()
+        {
+            long value = BinaryPrimitives.ReadInt64LittleEndian(_data.Slice(_position, 8));
+            _position += 8;
             return value;
         }
         public float ReadFloat()

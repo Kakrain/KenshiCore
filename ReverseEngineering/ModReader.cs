@@ -111,7 +111,8 @@ namespace KenshiCore.ReverseEngineering
 
             record.Name = reader.ReadString();
 
-            record.StringId = reader.ReadString();
+            record.SetStringId(reader.ReadString());
+            //record.StringId = reader.ReadString();
 
             record.ChangeType = reader.ReadInt();//-2147483646 means new,-2147483647 means changed,-2147483645 changed and name was changed
 
@@ -182,10 +183,14 @@ namespace KenshiCore.ReverseEngineering
                 header.Description = reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok);
 
             if (reader.Remaining > 0)
-                header.Dependencies = reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok);
+                header.SetDependenciesFromString(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(), out ok)??"");
+                //header.Dependencies = CoreUtils.SplitModList(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(), out ok));
+            //reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok);
 
             if (reader.Remaining > 0)
-                header.References = reader.TryRead( static (ref PrimitiveReader r) => r.ReadString(),out ok);
+                header.SetReferencesFromString(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(), out ok) ?? "");
+            //header.References = CoreUtils.SplitModList(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(), out ok));
+            //header.References = reader.TryRead( static (ref PrimitiveReader r) => r.ReadString(),out ok);
 
             if (reader.Remaining > 0)
                 header.SaveCount = reader.TryRead(static (ref PrimitiveReader r) => r.ReadUInt32(),out ok);

@@ -25,7 +25,12 @@ namespace KenshiCore.ReverseEngineering
             BinaryPrimitives.WriteInt32LittleEndian(span, value);
             _buffer.Advance(4);
         }
-
+        public void WriteLong(long value)
+        {
+            Span<byte> span = _buffer.GetSpan(8);
+            BinaryPrimitives.WriteInt64LittleEndian(span, value);
+            _buffer.Advance(8);
+        }
         public void WriteUInt32(uint value)
         {
             Span<byte> span = _buffer.GetSpan(4);

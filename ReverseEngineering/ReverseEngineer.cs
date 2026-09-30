@@ -15,10 +15,10 @@ namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
-        public const int HARD_STRING_LIMIT = 2003; //2000 worked too, 2004 not.
+        public const int HARD_STRING_LIMIT = 2003;//2000 worked
         public const int DELETED = 2147483647;
         public ModData modData { get; private set; } = new();
-        public string modname { get; private set; } = "";
+        public string modname { get; private set; }
         public void InitializeEmptyMod(int fileType = 17)
         {
             modData.Header = new ModHeader_V17
@@ -26,6 +26,10 @@ namespace KenshiCore.ReverseEngineering
                 FileType = fileType,
                 ModVersion = 1,
             };
+        }
+        public ReverseEngineer(string modn)
+        {
+            this.modname = modn;
         }
         private const int NEW_V16 = unchecked((int)0x80000002u);
         private const int NEW_V17 = 0x00000020;
@@ -37,13 +41,22 @@ namespace KenshiCore.ReverseEngineering
         {
             return modData.GetRecords().Where(r => !r.isNew()).Select(r => r.getStringId()).ToList();
         }
-        public List<string> getDependencies()
+        public List<string> getDependenciesAsList()
         {
-            return CoreUtils.SplitModList(this.modData.Header?.Dependencies);
+            return CoreUtils.SplitModList(modData.Header!.GetDependencies());//modData.Header!.Dependencies ?? new() ;//CoreUtils.SplitModList(this.modData.Header?.Dependencies);
         }
-        public List<string> getReferences()
+        public List<string> getReferencesAsList()
         {
-            return CoreUtils.SplitModList(this.modData.Header?.References);
+            return CoreUtils.SplitModList(modData.Header!.GetReferences());//CoreUtils.SplitModList(this.modData.Header?.References);
+        }
+        public void MergeReverseEngineer(ReverseEngineer other)
+        {
+            addDependencies(other.getDependenciesAsList());
+            addReferences(other.getReferencesAsList());
+            foreach(ModRecord record in other.modData.GetRecords())
+            {
+                this.modData.AddRecord(record);
+            }
         }
         public void addDependencies(List<string> deps)
         {
@@ -300,7 +313,8 @@ namespace KenshiCore.ReverseEngineering
             {
                 ownedtarget = new ModRecord();
                 ownedtarget.Name = target.Name;
-                ownedtarget.StringId = target.StringId;
+                ownedtarget.SetStringId(target.StringId);
+                //ownedtarget.StringId = target.StringId;
                 ownedtarget.RecordType = target.RecordType;
                 ownedtarget.ChangeType = 0;//target.ChangeType;
                 ownedtarget.SetRecordStatus(this.modData.Header!.FileType, "existing");
@@ -418,13 +432,11 @@ namespace KenshiCore.ReverseEngineering
             todelete.BoolFields ??= new Dictionary<string, bool>();
             todelete.BoolFields["REMOVED"] = true;
         }
-        private static bool IsDeleted(int[] vals)
-        {
-            return (vals[0] == DELETED) && (vals[1] == DELETED) && (vals[2] == DELETED);
-        }
         public void EditExtraData(ModRecord target, string category, Func<int, int>[] transformers, Func<int[], bool>? isValid = null)
         {
             bool exist_at_beginning = modData.GetRecordByStringId(target.StringId) != null;
+            if (target.ExtraDataFields == null)
+                return;
             target.ExtraDataFields!.TryGetValue(category, out var target_cat);
             if (target_cat == null)
             {
@@ -433,7 +445,7 @@ namespace KenshiCore.ReverseEngineering
             ModRecord? ownedtarget = EnsureRecordExists(target);
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
+            ownedtarget.ExtraDataFields.TryGetValue(category, out var cat);
 
             if (cat == null)
             {
@@ -468,7 +480,7 @@ namespace KenshiCore.ReverseEngineering
             for (int i = 0; i < n; i++)
             {
                 ModRecord clone = toclone.deepClone();
-                clone.StringId = $"{GetNextFreeStringIdNumber()}-{this.modname}";
+                clone.SetStringId($"{GetNextFreeStringIdNumber()}-{this.modname}");
                 clone.ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17;
                 this.modData.AddRecord(clone);
                 clones.Add(clone);
@@ -486,11 +498,12 @@ namespace KenshiCore.ReverseEngineering
             var newRecord = new ModRecord
             {
                 Name = name,
-                StringId = stringId,
+                //StringId = stringId,
                 RecordType = recordType,
                 ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17,//ModRecord.ModTypeCodes.FirstOrDefault(kv => kv.Value == recordType).Key,
                 Id = 0
             };
+            newRecord.SetStringId(stringId);
             this.modData.AddRecord(newRecord);
             return newRecord;
         }

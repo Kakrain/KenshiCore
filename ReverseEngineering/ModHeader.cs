@@ -18,8 +18,37 @@ namespace KenshiCore.ReverseEngineering
         public int ModVersion { get; set; }
         public string? Author { get; set; } = null;
         public string? Description { get; set; } = null;
-        public string? Dependencies { get; set; } = null;
-        public string? References { get; set; } = null;
+
+        private List<string>? Dependencies = null;
+        private List<string>? References = null;
+        //public string? Dependencies { get; set; } = null;
+        //public string? References { get; set; } = null;
+        
+        public bool isDependenciesNull()
+        {
+            return Dependencies == null;
+        }
+        public bool isReferencesNull()
+        {
+            return References == null;
+        }
+        public string GetDependencies()
+        {
+            return string.Join(",", Dependencies??new());
+        }
+        public string GetReferences()
+        {
+            return string.Join(",", References ?? new());
+        }
+        public void SetDependenciesFromString(string deps)
+        {
+            Dependencies = CoreUtils.SplitModList(deps);
+        }
+        public void SetReferencesFromString(string deps)
+        {
+            References = CoreUtils.SplitModList(deps);
+        }
+
         public int UnknownInt { get; set; }
         public int lastStringIdNr = -1;
         public int RecordCount = 0;
@@ -33,11 +62,28 @@ namespace KenshiCore.ReverseEngineering
         public byte[]? UnparsedDetails { get; set; }
         public void AddDependency(string modName)
         {
-            Dependencies = CoreUtils.AddModToList(Dependencies, modName, ReverseEngineer.HARD_STRING_LIMIT);
+
+            if (ModRepository.Instance.BaseGameMods.Contains(modName))
+            {
+                return;
+            }
+            if (Dependencies == null)
+                Dependencies = new();
+            if(!Dependencies.Contains(modName))
+                Dependencies.Add(modName);
+            //Dependencies = CoreUtils.AddModToList(Dependencies, modName, ReverseEngineer.HARD_STRING_LIMIT);
         }
         public void AddReference(string modName)
         {
-            References = CoreUtils.AddModToList(References, modName, ReverseEngineer.HARD_STRING_LIMIT);
+            if (ModRepository.Instance.BaseGameMods.Contains(modName))
+            {
+                return;
+            }
+            if (References == null)
+                References = new();
+            if (!References.Contains(modName))
+                References.Add(modName);
+            //References = CoreUtils.AddModToList(References, modName, ReverseEngineer.HARD_STRING_LIMIT);
         }
         public abstract void WriteHeader(ref PrimitiveWriter writer);//, int count);
         public abstract void ReadHeader(ref PrimitiveReader writer);
@@ -76,8 +122,10 @@ namespace KenshiCore.ReverseEngineering
             writer.WriteInt(ModVersion);
             writer.WriteString(Author!);
             writer.WriteString(Description!);
-            writer.WriteString(Dependencies!);
-            writer.WriteString(References!);
+            writer.WriteString(GetDependencies());//string.Join(",",Dependencies??new()));
+            writer.WriteString(GetReferences());// string.Join(",", References ?? new()));
+            
+            //writer.WriteString(References!);
             writer.WriteInt(UnknownInt);
 
         }
@@ -86,8 +134,10 @@ namespace KenshiCore.ReverseEngineering
             ModVersion = reader.ReadInt();
             Author = reader.ReadString();
             Description = reader.ReadString();
-            Dependencies = reader.ReadString();
-            References = reader.ReadString();
+            SetDependenciesFromString(reader.ReadString());
+            SetReferencesFromString(reader.ReadString());
+            //Dependencies =CoreUtils.SplitModList(reader.ReadString());//reader.ReadString();
+            //References = CoreUtils.SplitModList(reader.ReadString());//reader.ReadString();
             UnknownInt = reader.ReadInt();
 
         }
@@ -120,14 +170,17 @@ namespace KenshiCore.ReverseEngineering
             var buffer = new ArrayBufferWriter<byte>();
             var writer = new PrimitiveWriter(buffer);
 
+            CoreUtils.Print($"Dependencies {GetDependencies()}");
+            CoreUtils.Print($"References {GetReferences()}");
+
             if (Author != null)
                 writer.WriteString(Author);
             if (Description != null)
                 writer.WriteString(Description);
-            if (Dependencies != null)
-                writer.WriteString(Dependencies);
-            if (References != null)
-                writer.WriteString(References);
+            if (!isDependenciesNull())
+                writer.WriteString(GetDependencies());//string.Join(",",Dependencies));
+            if (!isReferencesNull())
+                writer.WriteString(GetReferences());//string.Join(",", References));
             if (SaveCount != null)
                 writer.WriteUInt32(SaveCount.Value);
             if (LastMerge != null)
