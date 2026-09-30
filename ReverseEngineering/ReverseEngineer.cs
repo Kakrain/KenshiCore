@@ -352,34 +352,15 @@ namespace KenshiCore.ReverseEngineering
         }
         public void AddExtraData(ModRecord target, ModRecord source, string category, int[]? vars = null, bool force = false)
         {
-            ModRecord? ownedtarget = EnsureRecordExists(target);
-            if (ownedtarget.ExtraDataFields == null)
-                ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
-            ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            if (target.ExtraDataFields == null)
-                target.ExtraDataFields = new();
-            target.ExtraDataFields.TryGetValue(category, out var target_cat);
-            if (!force && (ownedtarget.ExtraDataExists(category,source.StringId)|| target.ExtraDataExists(category,source.StringId))) 
-                //ExtraDataExists(cat, target_cat, source.StringId))
-                return;
-            if (cat == null)
-            {
-                cat = new Dictionary<string, int[]>();
-                ownedtarget.ExtraDataFields.Add(category, cat);
-            }
-            if (vars == null)
-                vars = new int[] { 0, 0, 0 };
-            cat[source.StringId] = vars;
+            AddExtraDataString(target, source.StringId, category, vars, force);
         }
         public void AddExtraDataString(ModRecord target, string idsource, string category, int[]? vars = null, bool force = false)
-        {
+        {//(record,kv.Key, category, kv.Value);
             ModRecord? ownedtarget = EnsureRecordExists(target);
             if (ownedtarget.ExtraDataFields == null)
                 ownedtarget.ExtraDataFields = new Dictionary<string, Dictionary<string, int[]>>();
             ownedtarget.ExtraDataFields!.TryGetValue(category, out var cat);
-            target.ExtraDataFields!.TryGetValue(category, out var target_cat);
             if (!force && (ownedtarget.ExtraDataExists(category, idsource) || target.ExtraDataExists(category, idsource)))
-                //if (!force && ExtraDataExists(cat, target_cat, idsource))
                 return;
             if (cat == null)
             {
