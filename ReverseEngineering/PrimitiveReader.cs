@@ -116,7 +116,6 @@ namespace KenshiCore.ReverseEngineering
             for (int i = 0; i < count; i++)
             {
                 string key = ReadString();
-
                 dict.Add( key, new MergeEntry(ReadUInt32(),ReadUInt32()));
             }
 
@@ -128,11 +127,14 @@ namespace KenshiCore.ReverseEngineering
             var dict = new Dictionary<string, DeleteRequest>(count);
             for (int i = 0; i < count; i++)
             {
+
                 string key = ReadString();
                 dict[key] = new DeleteRequest(ReadUInt32(), ReadString());
             }
             return dict;
         }
+
+
         public T? TryRead<T>(ReadValue<T> readValue,out bool success)
         {
             

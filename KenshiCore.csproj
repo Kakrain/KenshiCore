@@ -32,6 +32,9 @@
    <Content Include="templates\TEMPLATES">
     <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
    </Content>
+   <Content Include="templates\empty">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+   </Content>
   </ItemGroup>
 
   <ItemGroup>

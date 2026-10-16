@@ -9,27 +9,36 @@ using System.Reflection.PortableExecutable;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace KenshiCore.ReverseEngineering
 {
     public class ReverseEngineer
     {
-        public const int HARD_STRING_LIMIT = 2003;//2000 worked
+        public const int HARD_STRING_LIMIT = 1892;//1893no funciona
         public const int DELETED = 2147483647;
         public ModData modData { get; private set; } = new();
         public string modname { get; private set; }
         public void InitializeEmptyMod(int fileType = 17)
         {
+            LoadModFile(Path.Combine(AppContext.BaseDirectory, "templates", "empty"));
+            /*modData = new ModData();
             modData.Header = new ModHeader_V17
             {
                 FileType = fileType,
                 ModVersion = 1,
-            };
+            };*/
         }
         public ReverseEngineer(string modn)
         {
             this.modname = modn;
+        }
+        public static ReverseEngineer GenerateEmpty(string name)
+        {
+            var reverseEngineer = new ReverseEngineer(name);
+            reverseEngineer.InitializeEmptyMod();
+            return reverseEngineer;
         }
         private const int NEW_V16 = unchecked((int)0x80000002u);
         private const int NEW_V17 = 0x00000020;
@@ -43,11 +52,11 @@ namespace KenshiCore.ReverseEngineering
         }
         public List<string> getDependenciesAsList()
         {
-            return CoreUtils.SplitModList(modData.Header!.GetDependencies());//modData.Header!.Dependencies ?? new() ;//CoreUtils.SplitModList(this.modData.Header?.Dependencies);
+            return modData.Header!.GetDependenciesList();//CoreUtils.SplitModList(modData.Header!.GetDependencies());//modData.Header!.Dependencies ?? new() ;//CoreUtils.SplitModList(this.modData.Header?.Dependencies);
         }
         public List<string> getReferencesAsList()
         {
-            return CoreUtils.SplitModList(modData.Header!.GetReferences());//CoreUtils.SplitModList(this.modData.Header?.References);
+            return modData.Header!.GetReferencesList();//CoreUtils.SplitModList(this.modData.Header?.References);
         }
         public void MergeReverseEngineer(ReverseEngineer other)
         {
@@ -55,7 +64,15 @@ namespace KenshiCore.ReverseEngineering
             addReferences(other.getReferencesAsList());
             foreach(ModRecord record in other.modData.GetRecords())
             {
-                this.modData.AddRecord(record);
+                ModRecord? modr = this.modData.GetRecordByStringId(record.getStringId());
+                if(modr== null)
+                {
+                    this.modData.AddRecord(record);
+                }
+                else
+                {
+                    modr.applyChangesFrom(record);
+                }
             }
         }
         public void addDependencies(List<string> deps)
@@ -582,6 +599,10 @@ namespace KenshiCore.ReverseEngineering
                     _recordsByType.Remove(record.getRecordTypeCode());
             }
             return true;
+        }
+        public bool ContainsRecord(string stringId)
+        {
+            return _recordsByStringId.ContainsKey(stringId);
         }
         public ModRecord? GetRecordByStringId(string stringId)
         {

@@ -45,7 +45,7 @@ namespace KenshiCore.UI
 
     public class ProtoMainForm : Form
     {
-        public ListView modsListView;
+        private ListView modsListView;
         private ImageList modIcons = new ImageList();
         protected Dictionary<string, ModItem> mergedMods = new Dictionary<string, ModItem>();
 
@@ -780,6 +780,47 @@ namespace KenshiCore.UI
                 originalOrder.Add(item);
             }
         }
-        
+        protected int GetColumnIndex(string columnName)
+        {
+            return columnDefs.FindIndex(c => string.Equals(c.header.Tag?.ToString() ?? c.header.Text,columnName,StringComparison.OrdinalIgnoreCase));
+        }
+        protected int GetRowIndex(string modName)
+        {
+            return modsListView.Items.Cast<ListViewItem>().ToList().FindIndex(item => item.Tag is ModItem mod &&string.Equals(mod.Name,modName,StringComparison.Ordinal));
+        }
+        protected void SetValue(int columnIndex, int rowIndex, string value)
+        {
+            modsListView.Items[rowIndex].SubItems[columnIndex].Text = value;
+        }
+        protected void SetColor(int columnIndex, int rowIndex,Color foreColor)
+        {
+            modsListView.Items[rowIndex].SubItems[columnIndex].ForeColor = foreColor;
+        }
+        protected void SetColumnValues(string columnName, Func<ModItem, string> selector)
+        {
+            int columnIndex = GetColumnIndex(columnName);
+
+            if (columnIndex < 0)
+                throw new ArgumentException($"Column '{columnName}' does not exist.",nameof(columnName));
+
+            foreach (ListViewItem item in modsListView.Items)
+            {
+                if (item.Tag is not ModItem mod)
+                    continue;
+
+                while (item.SubItems.Count <= columnIndex)item.SubItems.Add("");
+
+                item.SubItems[columnIndex].Text = selector(mod);
+            }
+
+            modsListView.Refresh();
+        }
+        protected void InvokeOnUiThread(Action action)
+        {
+            if (InvokeRequired)
+                Invoke(action);
+            else
+                action();
+        }
     }
 }

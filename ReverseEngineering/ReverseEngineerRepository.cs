@@ -189,13 +189,23 @@ namespace KenshiCore.ReverseEngineering
             string modName = Path.GetFileName(path);
 
             if (!_reverseEngineers.ContainsKey(modName))
+            {
+                CoreUtils.Print($"WARNING: {modName} not found in ReverseEngineersRepository");
                 return;
+            }
+                
 
             var re = LoadMod(path, preferUnpatched);
 
             if (re == null)
                 return;
-
+            SetMod(re, modName);
+            //_reverseEngineers[modName] = re;
+            //_mergedByTypeAndId.Clear();
+        }
+        public void SetMod(ReverseEngineer re, string modName)
+        {
+            CoreUtils.Print("Setting mod " + modName);
             _reverseEngineers[modName] = re;
             _mergedByTypeAndId.Clear();
         }

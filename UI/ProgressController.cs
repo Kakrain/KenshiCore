@@ -6,7 +6,15 @@ using System.Threading.Tasks;
 
 namespace KenshiCore.UI
 {
-    public sealed class ProgressController
+    public interface IProgressReporter
+    {
+        void Initialize(int max);
+        void Report(int value, string? message = null);
+        void ReportStep(string? message = null);
+        void Finish(string? message = null);
+
+    }
+    public sealed class ProgressController: IProgressReporter
     {
         private static ProgressController? _instance;
         public static ProgressController Instance => _instance ??= new ProgressController();
@@ -43,6 +51,43 @@ namespace KenshiCore.UI
             _timer.Interval = 33; // ~30fps
             _timer.Tick += (_, _) => UpdateUI();
             _timer.Start();
+        }
+        public static void For( int start,int end,Action<int> action, string? text = null)
+        {
+            int count = Math.Max(0, end - start);
+
+            if (count == 0)
+                return;
+
+            ProgressController.Instance.Initialize(count);
+
+            for (int i = start; i < end; i++)
+            {
+                action(i);
+                ProgressController.Instance.Report(i - start + 1, text);
+            }
+
+            ProgressController.Instance.Finish(text);
+        }
+
+        public static void ForEach<T>(IEnumerable<T> items,Action<T> action,string? text = null)
+        {
+            var list = items as IReadOnlyCollection<T> ?? items.ToList();
+
+            if (list.Count == 0)
+                return;
+
+            ProgressController.Instance.Initialize(list.Count);
+
+            int i = 0;
+
+            foreach (var item in list)
+            {
+                action(item);
+                ProgressController.Instance.Report(++i, text);
+            }
+
+            ProgressController.Instance.Finish(text);
         }
         public void setLabel(string text)
         {

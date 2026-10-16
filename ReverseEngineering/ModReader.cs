@@ -1,6 +1,7 @@
 ﻿using KenshiCore.Mods;
 using KenshiCore.Utilities;
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Metadata;
@@ -49,7 +50,7 @@ namespace KenshiCore.ReverseEngineering
                 {
                     data.Leftover = reader.ReadBytes((int)leftover);
                     CoreUtils.Print($"⚠ Warning: {leftover} leftover bytes detected.\n"+(data.Header.FileType==15?"it is normal since this version is 15":$"not expected, version is {data.Header.FileType}"));
-                    return true;
+                    return data.Header.FileType == 15;
                 }
                 return true;
             }
@@ -76,7 +77,7 @@ namespace KenshiCore.ReverseEngineering
             }
 
         }
-        private ModHeader ParseHeader(ref PrimitiveReader reader)
+        private ModHeader   ParseHeader(ref PrimitiveReader reader)
         {
             ModHeader header;
             int fileType = reader.ReadInt();
@@ -110,6 +111,7 @@ namespace KenshiCore.ReverseEngineering
             record.Id = reader.ReadInt();
 
             record.Name = reader.ReadString();
+
 
             record.SetStringId(reader.ReadString());
             //record.StringId = reader.ReadString();
@@ -166,14 +168,14 @@ namespace KenshiCore.ReverseEngineering
             }
             return record;
         }
-        private void TryParseDetails(ModHeader header_param)
+        /*private void TryParseDetails(ModHeader header_param)
             
         {
             if (header_param is not ModHeader_V17 header)
                 return;
-           
-            var reader = new PrimitiveReader(header.Details);
-
+            CoreUtils.Print($"Details bytes: {Convert.ToHexString(header.Details)}");
+            //var reader = new PrimitiveReader(header.Details);
+            var reader = new PrimitiveReader( header.Details.AsSpan(0, header.Details.Length - 4));
             bool ok;
 
             if (reader.Remaining > 0)
@@ -202,10 +204,61 @@ namespace KenshiCore.ReverseEngineering
                 header.MergeEntries = reader.TryRead(static (ref PrimitiveReader r) => r.ReadMergeEntries(),out ok);
 
             if (reader.Remaining > 0)
-                header.DeleteRequests = reader.TryRead(  static (ref PrimitiveReader r) => r.ReadDeleteRequests(),out ok);
+            {
+                CoreUtils.Print(
+                    $"Remaining details after MergeEntries: {reader.Remaining} bytes");
+
+                header.UnparsedDetails = reader.ReadRemainingBytes();
+            }
+            //if (reader.Remaining > 0)
+            //    header.DeleteRequests = reader.TryRead(  static (ref PrimitiveReader r) => r.ReadDeleteRequests(),out ok);
 
             if (reader.Remaining > 0)
                 header.UnparsedDetails = reader.ReadRemainingBytes();
+        }*/
+        private void TryParseDetails(ModHeader header_param)
+        {
+            if (header_param is not ModHeader_V17 header)
+                return;
+
+            var details = header.Details?? throw new InvalidDataException("V17 Details is null.");
+
+            //if (details.Length < 4)
+            //    throw new InvalidDataException($"V17 Details is too short: {details.Length}");
+
+            // Last 4 bytes of Details
+            header.lastStringIdNr =BinaryPrimitives.ReadInt32LittleEndian(details.AsSpan(details.Length - 4, 4));
+
+            // Everything before those last 4 bytes is the optional details section.
+            var reader = new PrimitiveReader( details.AsSpan(0, details.Length - 4));
+
+            bool ok;
+
+            if (reader.Remaining > 0)
+                header.Author = reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok);
+
+            if (reader.Remaining > 0)
+                header.Description = reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok);
+
+            if (reader.Remaining > 0)
+                header.SetDependenciesFromString(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok) ?? "");
+
+            if (reader.Remaining > 0)
+                header.SetReferencesFromString(reader.TryRead(static (ref PrimitiveReader r) => r.ReadString(),out ok) ?? "");
+
+            if (reader.Remaining > 0)
+                header.SaveCount = reader.TryRead( static (ref PrimitiveReader r) => r.ReadUInt32(), out ok);
+
+            if (reader.Remaining > 0)
+                header.LastMerge = reader.TryRead(static (ref PrimitiveReader r) => r.ReadUInt32(),out ok);
+
+            if (reader.Remaining > 0)
+                header.MergeEntries = reader.TryRead(static (ref PrimitiveReader r) => r.ReadMergeEntries(),out ok);
+
+            if (reader.Remaining > 0)
+            {
+                header.UnparsedDetails = reader.ReadRemainingBytes();
+            }//5007295 last stringid
         }
     }
 }

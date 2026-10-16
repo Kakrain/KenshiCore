@@ -20,14 +20,15 @@ namespace KenshiCore.Mods
         private const string sep = ":";
         public void SetStringId(string strid)
         {
-            /*if (string.IsNullOrWhiteSpace(strid))
-                throw new ArgumentException("StringId cannot be null or empty.", nameof(strid));
-           */
+            //if (string.IsNullOrWhiteSpace(strid))
+                //throw new ArgumentException("StringId cannot be null or empty.", nameof(strid));  
             if (strid.EndsWith("-", StringComparison.Ordinal))
-                CoreUtils.Print($"Warning: Malformed StringId: '{strid}'");
+            {
+                CoreUtils.Print($"Warning: has Malformed StringId: '{strid}'");
+                //throw new ArgumentException("StringId cannot be null or empty.", nameof(strid));
+            }
             this.StringId = strid;
         }
-
         public Dictionary<string, bool>? BoolFields = null;//new(); { get; set; }
         public Dictionary<string, float>? FloatFields = null;//new(); { get; set; }
         public Dictionary<string, int>? LongFields = null;//new(); { get; set; }

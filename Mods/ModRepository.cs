@@ -35,19 +35,6 @@ namespace KenshiCore.Mods
             _selectedMods.Clear();
             _selectedMods.AddRange(mods);
         }
-        /*public void LoadBaseGameMods()//string gamedirDataPath)
-        {
-            string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");
-            _baseGameMods.Clear();
-            if (!Directory.Exists(gamedirDataPath)) return;
-
-            foreach (var file in Directory.GetFiles(gamedirDataPath, "*.mod"))
-                _baseGameMods.Add(Path.GetFileName(file));
-            foreach (var file in Directory.GetFiles(gamedirDataPath, "*.base"))
-                _baseGameMods.Add(Path.GetFileName(file));
-            
-
-        }*/
         public void LoadBaseGameMods()
         {
             string gamedirDataPath = Path.Combine(ModManager.kenshiPath!, "data");

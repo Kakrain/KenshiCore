@@ -119,12 +119,12 @@ namespace KenshiCore.Mods
                 return false;
             }
 
-            bool hasExe = File.Exists(Path.Combine(path, "kenshi.exe")) || File.Exists(Path.Combine(path, "kenshi_x64.exe"));
+           // bool hasExe = File.Exists(Path.Combine(path, "kenshi.exe")) || File.Exists(Path.Combine(path, "kenshi_x64.exe"));
             bool hasData = Directory.Exists(Path.Combine(path, "data"));
 
-            if (!hasExe || !hasData)
+            if (!hasData)//!hasExe || 
             {
-                errorMessage = "That folder doesn’t look like a Kenshi install (kenshi.exe or data/ missing).";
+                errorMessage = "That folder doesn’t look like a Kenshi install  ( data/ folder missing).";
                 return false;
             }
 

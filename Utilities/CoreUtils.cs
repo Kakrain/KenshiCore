@@ -35,6 +35,29 @@ namespace KenshiCore.Utilities
         private static string? _currentLogPath;
         private static bool _logEnabled = false;
         public static Dictionary<string,bool> toggles { get; } = new Dictionary<string, bool>();
+        public static List<string> ReadFileAsList(string filePath, bool strict = true)
+        {
+            if (!strict && !File.Exists(filePath))
+                return new List<string>();
+
+            return File.ReadAllLines(filePath).Select(line => line.Trim()).Where(line => !string.IsNullOrWhiteSpace(line) && !line.StartsWith("#")).ToList();
+        }
+        public static void WriteListToFile(string filePath,IEnumerable<string> items,string? initialComment = null)
+        {
+            var lines = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(initialComment))
+            {
+                foreach (var line in initialComment.Split(new[] { "\r\n", "\n" },StringSplitOptions.None))
+                {
+                    lines.Add(line.StartsWith("#") ? line : $"# {line}");
+                }
+            }
+
+            lines.AddRange(items.Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()));
+
+            File.WriteAllLines(filePath, lines);
+        }
 
         public static bool isModPatched(ModItem mod)
         {
