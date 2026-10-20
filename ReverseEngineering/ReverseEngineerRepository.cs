@@ -236,39 +236,6 @@ namespace KenshiCore.ReverseEngineering
 
             return re;
         }
-        /*
-        public void ReloadMod(string path,bool preferUnpatched=false)
-        {
-            string modName = Path.GetFileName(path);
-
-            if (!_reverseEngineers.ContainsKey(modName))
-                return;
-
-            var re = new ReverseEngineer(modName);
-            try
-            {
-                string dir = Path.GetDirectoryName(path)!;
-                string unpatchedPath = Path.Combine(dir, Path.GetFileNameWithoutExtension(modName) + ".unpatched");
-                if (preferUnpatched && File.Exists(unpatchedPath))
-                {
-                    re.LoadModFile(unpatchedPath);
-                }
-                else
-                {
-                    re.LoadModFile(path);
-                }
-                
-            }
-            catch (UnsupportedModFileException ex)
-            {
-                CoreUtils.Print(
-                    $"Error reloading mod '{modName}' at '{path}': {ex.Message}");
-                return;
-            }
-
-            _reverseEngineers[modName] = re;
-            _mergedByTypeAndId.Clear();
-        }*/
         // Clear all loaded ReverseEngineers
         public void Clear()
         {

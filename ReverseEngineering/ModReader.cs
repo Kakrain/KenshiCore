@@ -104,20 +104,16 @@ namespace KenshiCore.ReverseEngineering
         private ModRecord ParseRecord(ref PrimitiveReader reader)
         {
             int start = reader.getPosition();
-            var record = new ModRecord();
-            record.UnknownValue = reader.ReadInt();
+            int UnknownValue = reader.ReadInt();
 
-            record.RecordType = reader.ReadInt();//BUILDING,GAMESTATE_FACTION,etc
-            record.Id = reader.ReadInt();
+            int RecordType = reader.ReadInt();//BUILDING,GAMESTATE_FACTION,etc
+            int Id = reader.ReadInt();
 
-            record.Name = reader.ReadString();
+            string Name = reader.ReadString();
+            string StringId = reader.ReadString();
+            int ChangeType = reader.ReadInt();//-2147483646 means new,-2147483647 means changed,-2147483645 changed and name was changed
 
-
-            record.SetStringId(reader.ReadString());
-            //record.StringId = reader.ReadString();
-
-            record.ChangeType = reader.ReadInt();//-2147483646 means new,-2147483647 means changed,-2147483645 changed and name was changed
-
+            var record = new ModRecord(UnknownValue, RecordType, Id, Name, StringId, ChangeType);
             record.BoolFields = reader.ReadDictionary<bool>(static (ref PrimitiveReader r) => r.ReadBool());//if removed by a mod just one bool field: "REMOVED": True
             record.FloatFields = reader.ReadDictionary<float>(static (ref PrimitiveReader r) => r.ReadFloat());
             record.LongFields = reader.ReadDictionary<int>(static (ref PrimitiveReader r) => r.ReadInt());

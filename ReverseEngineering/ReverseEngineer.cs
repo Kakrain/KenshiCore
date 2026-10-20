@@ -282,7 +282,8 @@ namespace KenshiCore.ReverseEngineering
             foreach (var record in modData.GetRecords())
             {
                 if (record.Name != null)
-                    record.Name = func(record.Name);
+                    record.SetName(func(record.Name),modData.Header!.FileType);
+                //record.Name = func(record.Name);
 
                 if (record.StringFields != null)
                 {
@@ -328,12 +329,12 @@ namespace KenshiCore.ReverseEngineering
             ModRecord? ownedtarget = modData.GetRecordByStringId(target.StringId);
             if (ownedtarget == null)
             {
-                ownedtarget = new ModRecord();
-                ownedtarget.Name = target.Name;
-                ownedtarget.SetStringId(target.StringId);
+                ownedtarget = new ModRecord(target.UnknownValue,target.RecordType,target.Id,target.Name,target.StringId,target.ChangeType);
+                //ownedtarget.Name = target.Name;
+                //ownedtarget.SetStringId(target.StringId);
                 //ownedtarget.StringId = target.StringId;
-                ownedtarget.RecordType = target.RecordType;
-                ownedtarget.ChangeType = 0;//target.ChangeType;
+                //ownedtarget.RecordType = target.RecordType;
+               // ownedtarget.ChangeType = 0;//target.ChangeType;
                 ownedtarget.SetRecordStatus(this.modData.Header!.FileType, "existing");
                 ownedtarget.SetChangeCounter(2);//2 was too low
                 this.modData.AddRecord(ownedtarget);
@@ -493,14 +494,15 @@ namespace KenshiCore.ReverseEngineering
             string stringId = $"{nextId}-{this.modname}";
 
             // Create new record
-            var newRecord = new ModRecord
-            {
+            var newRecord = new ModRecord(0,recordType,0,name,stringId, this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17);
+            /*{
+                UnknownValue = 0,
                 Name = name,
                 //StringId = stringId,
                 RecordType = recordType,
                 ChangeType = this.modData.Header!.FileType == 16 ? NEW_V16 : NEW_V17,//ModRecord.ModTypeCodes.FirstOrDefault(kv => kv.Value == recordType).Key,
                 Id = 0
-            };
+            };*/
             newRecord.SetStringId(stringId);
             this.modData.AddRecord(newRecord);
             return newRecord;

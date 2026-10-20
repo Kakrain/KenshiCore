@@ -119,6 +119,103 @@ namespace KenshiCore.UI
             else
                 msg.Show();
         }
+        public static string? PromptForString(string message, string caption = "Input",string defaultValue = "",bool allowEmpty = false)
+        {
+            var owner = Form.ActiveForm ??(Application.OpenForms.Count > 0? Application.OpenForms[0]: null);
+
+            using var dialog = new Form
+            {
+                Text = caption,
+                Width = 420,
+                Height = 160,
+                StartPosition = owner != null? FormStartPosition.CenterParent: FormStartPosition.CenterScreen,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                ShowInTaskbar = false
+            };
+
+            var label = new Label
+            {
+                Text = message,
+                Dock = DockStyle.Fill,
+                AutoSize = true
+            };
+
+            var input = new TextBox
+            {
+                Text = defaultValue,
+                Dock = DockStyle.Top
+            };
+
+            var ok = new Button
+            {
+                Text = "OK",
+                DialogResult = DialogResult.OK,
+                AutoSize = true
+            };
+
+            var cancel = new Button
+            {
+                Text = "Cancel",
+                DialogResult = DialogResult.Cancel,
+                AutoSize = true
+            };
+
+            var buttons = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft,
+                AutoSize = true
+            };
+
+            buttons.Controls.Add(cancel);
+            buttons.Controls.Add(ok);
+
+            var layout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                Padding = new Padding(12),
+                ColumnCount = 1,
+                RowCount = 3
+            };
+
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            layout.Controls.Add(label, 0, 0);
+            layout.Controls.Add(input, 0, 1);
+            layout.Controls.Add(buttons, 0, 2);
+
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = ok;
+            dialog.CancelButton = cancel;
+
+            ok.Click += (_, _) =>
+            {
+                if (!allowEmpty && string.IsNullOrWhiteSpace(input.Text))
+                {
+                    MessageBox.Show(
+                        dialog,
+                        "Please enter a value.",
+                        "Input required",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+
+                    dialog.DialogResult = DialogResult.None;
+                }
+            };
+
+            ThemeManager.ApplyTheme(dialog);
+
+            input.SelectAll();
+            input.Focus();
+
+            var result = owner != null ? dialog.ShowDialog(owner) : dialog.ShowDialog();
+
+            return result == DialogResult.OK  ? input.Text.Trim() : null;
+        }
 
         public static void OpenUrl(string url)
         {

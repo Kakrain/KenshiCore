@@ -14,7 +14,26 @@ namespace KenshiCore.Mods
         public int UnknownValue { get; set; }
         public int RecordType { get; set; }
         public int Id { get; set; }
-        public string Name { get; set; } = "";
+        public string Name { get; private set; } = "";//set;
+        public ModRecord(int UnknownValue,int RecordType,int Id,string Name,string StringId,int ChangeType)
+        {
+            this.UnknownValue = UnknownValue;
+            this.RecordType = RecordType;
+            this.Id = Id;
+            this.Name = Name;
+            this.StringId = StringId;
+            this.ChangeType = ChangeType;
+        }
+
+
+        public void SetName(string name,int fileType)
+        {
+            if (this.isNew() || this.Name.Equals(name))
+            {
+                SetRecordStatus(fileType, "namechanged");
+            }
+            this.Name = name;
+        }
         public string StringId { get; private set; } = "";
         public int ChangeType { get; set; }
         private const string sep = ":";
@@ -343,7 +362,7 @@ namespace KenshiCore.Mods
         }
         public ModRecord deepClone()
         {
-            var copy = new ModRecord
+            /*var copy = new ModRecord
             {
                 StringId = this.StringId,
                 UnknownValue = this.UnknownValue,
@@ -351,7 +370,9 @@ namespace KenshiCore.Mods
                 Id = this.Id,
                 Name = this.Name,
                 ChangeType = this.ChangeType
-            };
+            };*/
+            var copy=new ModRecord(this.UnknownValue, this.RecordType, this.Id, this.Name, this.StringId, this.ChangeType);
+
             copy.BoolFields = this.BoolFields != null
                 ? new Dictionary<string, bool>(this.BoolFields)
                 : null;

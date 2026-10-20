@@ -682,27 +682,6 @@ namespace KenshiCore.UI
                 RefreshColors();
             };
 
-            /*if (onToggled != null)
-            {
-                showActionCache[onToggled] = initialState; 
-                checkbox.CheckedChanged += (s, e) =>
-                {
-                    showActionCache[onToggled] = ((CheckBox)s!).Checked;
-
-                    RefreshColors();
-                    //ModsListView_SelectedIndexChanged(null, null);
-                };
-            }
-            CoreUtils.toggles[key] = initialState;
-            checkbox.CheckedChanged += (s, e) =>
-            {
-                CoreUtils.toggles[key] = ((CheckBox)s!).Checked;
-            };*/
-            /*checkbox.CheckedChanged += (s, e) =>
-            {
-                ModsListView_SelectedIndexChanged(null, null);
-            };*/
-
 
             ThemeManager.ApplyThemeToControl(checkbox);
             buttonPanel.Controls.Add(checkbox);
